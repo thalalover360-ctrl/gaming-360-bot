@@ -1,17 +1,11 @@
-import os
-import random
-import string
-import threading
+import os, random, string, threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Render Web Port Binding
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Live")
+        self.send_response(200); self.end_headers(); self.wfile.write(b"Live")
     def log_message(self, *a): return
 
 threading.Thread(target=lambda: HTTPServer(("0.0.0.0", int(os.environ.get("PORT", 8080))), H).serve_forever(), daemon=True).start()
@@ -19,27 +13,16 @@ threading.Thread(target=lambda: HTTPServer(("0.0.0.0", int(os.environ.get("PORT"
 TOKEN = "8963859901:AAGT3dYv2NraTFV69ZBQ8f5jEcqhcuIWcis"
 bot = telebot.TeleBot(TOKEN)
 
-rooms, games, ttt_games = {}, {}, {}
+rooms, games, ttt_games, word_games, memory_games, rps_games, bomb_games = {}, {}, {}, {}, {}, {}, {}
 
-CBSE = {
-    "10": [
-        {"q": "📚 [Class 10 Light]\nRay through Centre of Curvature retraces path because:", "opts": ["i = 0°", "r = 90°", "Plane mirror", "TIR"], "ans": "i = 0°"},
-        {"q": "📚 [Class 10 Electricity]\nR1 & R2 in parallel (R1 > R2). Which takes MORE power?", "opts": ["R2", "R1", "Both equal", "Depends on V"], "ans": "R2"},
-        {"q": "📚 [Class 10 Chemistry]\nLime water milkiness disappears with excess CO2 due to:", "opts": ["Ca(HCO3)2", "CaCO3", "CaO", "Ca(OH)2"], "ans": "Ca(HCO3)2"}
-    ],
-    "11": [
-        {"q": "📚 [Class 11 Physics]\nMomentum increases by 50%. % increase in KE is:", "opts": ["125%", "50%", "100%", "225%"], "ans": "125%"},
-        {"q": "📚 [Class 11 Chemistry]\nFor spontaneous process in isolated system, ΔS is:", "opts": ["> 0", "< 0", "= 0", "Variable"], "ans": "> 0"}
-    ],
-    "12": [
-        {"q": "📚 [Class 12 Physics]\nElectric dipole in uniform electric field feels:", "opts": ["Torque only (F=0)", "Both F & Torque", "Force only", "None"], "ans": "Torque only (F=0)"},
-        {"q": "📚 [Class 12 Maths]\nMatrix order 3, |A| = 4. What is |adj(A)|?", "opts": ["16", "4", "64", "1/4"], "ans": "16"}
-    ],
-    "mind": [
-        {"q": "🧠 Sookhte waqt geeli kaun si cheez hoti hai?", "opts": ["Towel", "Soap", "Paper", "Cloth"], "ans": "Towel"},
-        {"q": "🧠 Bina chhuye kya tod sakte ho?", "opts": ["Promise", "Glass", "Heart", "Trust"], "ans": "Promise"}
-    ]
-}
+WORDS = [
+    {"w": "PYTHON", "h": "Programming Language"},
+    {"w": "RONALDO", "h": "CR7 Footballer"},
+    {"w": "MESSI", "h": "LM10 Footballer"},
+    {"w": "CRICKET", "h": "Bat & Ball Sport"},
+    {"w": "GALAXY", "h": "System of Stars"},
+    {"w": "ROBOT", "h": "Smart Machine"}
+]
 
 @bot.message_handler(commands=['start', 'games', 'menu'])
 def menu(m):
@@ -49,83 +32,198 @@ def menu(m):
         return
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("🎮 Play Games (TTT / Bingo)", callback_data="s_g"),
-        InlineKeyboardButton("🧠 Brain & Maths Speed", callback_data="s_l"),
-        InlineKeyboardButton("📚 CBSE Study Quiz (10, 11, 12)", callback_data="s_q")
+        InlineKeyboardButton("🎮 Board Battles (TTT / Bingo / RPS)", callback_data="s_board"),
+        InlineKeyboardButton("💣 Bomb Defusal (Minesweeper)", callback_data=f"bmb_{m.chat.id}"),
+        InlineKeyboardButton("🔤 Word Games (Scramble / Guess)", callback_data="s_word"),
+        InlineKeyboardButton("🃏 Memory Match (Emoji Flip)", callback_data=f"mem_{m.chat.id}"),
+        InlineKeyboardButton("⚡ Maths Speed Battle", callback_data=f"qm_{m.chat.id}")
     )
-    bot.send_message(m.chat.id, "🔥 **Gaming 360 Arena!**\nCategory chuno:", reply_markup=kb, parse_mode="Markdown")
+    bot.send_message(m.chat.id, "🔥 **Gaming 360 Arena!** 🔥\nChoose game:", reply_markup=kb, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('s_'))
-def handle_s(c):
+def handle_sec(c):
     cid, s = c.message.chat.id, c.data.split('_')[1]
-    if s == "g":
+    if s == "board":
         kb = InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton("🤖 TTT vs AI", callback_data=f"ta_{cid}"),
-            InlineKeyboardButton("👥 TTT 1v1 Room Code (DM Match)", callback_data=f"tc_{cid}"),
-            InlineKeyboardButton("🎲 Bingo 5x5", callback_data=f"b_{cid}")
+            InlineKeyboardButton("🤖 Tic Tac Toe (vs AI)", callback_data=f"ta_{cid}"),
+            InlineKeyboardButton("👥 Tic Tac Toe (1v1 DM Code)", callback_data=f"tc_{cid}"),
+            InlineKeyboardButton("🎲 Bingo 5x5 (Live DM)", callback_data=f"b_{cid}"),
+            InlineKeyboardButton("✂️ Rock Paper Scissors (1v1)", callback_data=f"rps_{cid}"),
+            InlineKeyboardButton("⬅️ Back", callback_data="s_back")
         )
-        bot.edit_message_text("🎮 **Play Games:**", cid, c.message.message_id, reply_markup=kb)
-    elif s == "l":
+        bot.edit_message_text("🎮 **Board Battles Arena:**", cid, c.message.message_id, reply_markup=kb)
+    elif s == "word":
         kb = InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton("⚡ Maths Speed Battle", callback_data=f"qm_{cid}"),
-            InlineKeyboardButton("🧩 Riddles & Logic", callback_data=f"qz_mind")
+            InlineKeyboardButton("🔀 Word Scramble", callback_data=f"ws_{cid}"),
+            InlineKeyboardButton("💡 Word Guess", callback_data=f"wg_{cid}"),
+            InlineKeyboardButton("⬅️ Back", callback_data="s_back")
         )
-        bot.edit_message_text("🧠 **Brain Games:**", cid, c.message.message_id, reply_markup=kb)
-    elif s == "q":
-        kb = InlineKeyboardMarkup(row_width=1).add(
-            InlineKeyboardButton("📘 Class 10 PYQs", callback_data="qz_10"),
-            InlineKeyboardButton("📗 Class 11 PYQs", callback_data="qz_11"),
-            InlineKeyboardButton("📕 Class 12 PYQs", callback_data="qz_12")
-        )
-        bot.edit_message_text("📚 **CBSE Quizzes:**", cid, c.message.message_id, reply_markup=kb)
+        bot.edit_message_text("🔤 **Word Games:**", cid, c.message.message_id, reply_markup=kb)
+    elif s == "back":
+        menu(c.message)
 
-# Quiz
-@bot.callback_query_handler(func=lambda c: c.data.startswith('qz_'))
-def qz_send(c):
-    cat = c.data.split('_')[1]
-    q = random.choice(CBSE[cat])
-    opts = list(q['opts'])
-    random.shuffle(opts)
-    kb = InlineKeyboardMarkup(row_width=1)
-    for o in opts:
-        kb.add(InlineKeyboardButton(o, callback_data=f"qa_{cat}_{o[:8]}_{q['ans'][:8]}"))
-    bot.send_message(c.message.chat.id, q['q'], reply_markup=kb)
+# ==================== BOMB DEFUSAL ====================
+@bot.callback_query_handler(func=lambda c: c.data.startswith('bmb_'))
+def bomb_start(c):
+    cid = int(c.data.split('_')[1])
+    bomb_games[cid] = {'b': random.randint(0, 8), 'op': set()}
+    kb = InlineKeyboardMarkup(row_width=3)
+    kb.add(*[InlineKeyboardButton("📦", callback_data=f"bmv_{cid}_{i}") for i in range(9)])
+    bot.send_message(cid, "💣 **Bomb Defusal!**\nSafe boxes (💎) open karo, Bomb 💣 se bacho!", reply_markup=kb)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith('qa_'))
-def qz_ans(c):
-    _, cat, sel, ans = c.data.split('_')
-    if sel == ans:
-        kb = InlineKeyboardMarkup().add(InlineKeyboardButton("➡️ Next", callback_data=f"qz_{cat}"))
-        bot.send_message(c.message.chat.id, f"🎉 Sahi Jawab **{c.from_user.first_name}**!", reply_markup=kb)
-        bot.delete_message(c.message.chat.id, c.message.message_id)
-    else: bot.answer_callback_query(c.id, "❌ Galat!", show_alert=True)
+@bot.callback_query_handler(func=lambda c: c.data.startswith('bmv_'))
+def bomb_click(c):
+    _, cid, idx = c.data.split('_')
+    cid, idx = int(cid), int(idx)
+    g = bomb_games.get(cid)
+    if not g or idx in g['op']: return
 
-# Maths
+    u = c.from_user.first_name
+    if idx == g['b']:
+        kb = InlineKeyboardMarkup(row_width=3)
+        kb.add(*[InlineKeyboardButton("💥" if i==idx else ("💎" if i in g['op'] else "📦"), callback_data="none") for i in range(9)])
+        bot.edit_message_text(f"💥 **BOOM! {u} ne bomb phod diya!** 💀", cid, c.message.message_id, reply_markup=kb)
+        del bomb_games[cid]
+    else:
+        g['op'].add(idx)
+        if len(g['op']) == 8:
+            bot.edit_message_text("🏆 **PERFECT DEFUSAL! Saare safe boxes mil gaye!** 🎉", cid, c.message.message_id)
+            del bomb_games[cid]
+            return
+        kb = InlineKeyboardMarkup(row_width=3)
+        kb.add(*[InlineKeyboardButton("💎" if i in g['op'] else "📦", callback_data="none" if i in g['op'] else f"bmv_{cid}_{i}") for i in range(9)])
+        bot.edit_message_reply_markup(cid, c.message.message_id, reply_markup=kb)
+
+# ==================== ROCK PAPER SCISSORS ====================
+@bot.callback_query_handler(func=lambda c: c.data.startswith('rps_'))
+def rps_h(c):
+    cid = int(c.data.split('_')[1])
+    rps_games[cid] = {'p1': c.from_user, 'p2': None, 'c1': None, 'c2': None}
+    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("⚔️ Join Battle", callback_data=f"rj_{cid}"))
+    bot.send_message(cid, f"✂️ **RPS Battle!**\nHost: {c.from_user.first_name}\nDoosra player Join kare!", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith('rj_'))
+def rps_j(c):
+    cid = int(c.data.split('_')[1])
+    g, u = rps_games.get(cid), c.from_user
+    if not g or g['p1'].id == u.id: return
+    g['p2'] = u
+    kb = InlineKeyboardMarkup(row_width=3).add(
+        InlineKeyboardButton("🪨 Rock", callback_data=f"rc_{cid}_R"),
+        InlineKeyboardButton("📄 Paper", callback_data=f"rc_{cid}_P"),
+        InlineKeyboardButton("✂️ Scissors", callback_data=f"rc_{cid}_S")
+    )
+    bot.send_message(cid, f"🔥 **{g['p1'].first_name} vs {g['p2'].first_name}**\nApna move select karo:", reply_markup=kb)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith('rc_'))
+def rps_c(c):
+    _, cid, ch = c.data.split('_')
+    cid, g, uid = int(cid), rps_games.get(int(cid)), c.from_user.id
+    if not g or not g['p2']: return
+
+    if uid == g['p1'].id and not g['c1']: g['c1'] = ch
+    elif uid == g['p2'].id and not g['c2']: g['c2'] = ch
+    else: return
+
+    if g['c1'] and g['c2']:
+        m_map = {'R': '🪨 Rock', 'P': '📄 Paper', 'S': '✂️ Scissors'}
+        p1n, p2n, c1, c2 = g['p1'].first_name, g['p2'].first_name, g['c1'], g['c2']
+        if c1 == c2: res = "🤝 **Match Draw!**"
+        elif (c1=='R' and c2=='S') or (c1=='P' and c2=='R') or (c1=='S' and c2=='P'): res = f"🏆 **{p1n} Jeet Gaya!**"
+        else: res = f"🏆 **{p2n} Jeet Gaya!**"
+        bot.send_message(cid, f"⚔️ {p1n}: {m_map[c1]}\n⚔️ {p2n}: {m_map[c2]}\n\n{res}", parse_mode="Markdown")
+        del rps_games[cid]
+
+# ==================== MEMORY MATCH ====================
+MEM_ICONS = ['🍎', '🚀', '⚽', '💎', '🔥', '🦁']
+def get_mem_kb(cid):
+    g = memory_games[cid]
+    kb = InlineKeyboardMarkup(row_width=4)
+    btns = []
+    for i in range(12):
+        if i in g['mat']: btns.append(InlineKeyboardButton("✅", callback_data="none"))
+        elif i in g['flp']: btns.append(InlineKeyboardButton(g['cds'][i], callback_data="none"))
+        else: btns.append(InlineKeyboardButton("❓", callback_data=f"mm_{cid}_{i}"))
+    kb.add(*btns); return kb
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith('mem_'))
+def mem_init(c):
+    cid = int(c.data.split('_')[1])
+    cds = MEM_ICONS * 2
+    random.shuffle(cds)
+    memory_games[cid] = {'cds': cds, 'mat': set(), 'flp': [], 'mvs': 0, 'u': c.from_user.first_name}
+    bot.send_message(cid, f"🃏 **Memory Match ({c.from_user.first_name})**\n2 same cards match karo:", reply_markup=get_mem_kb(cid))
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith('mm_'))
+def mem_flip(c):
+    _, cid, idx = c.data.split('_')
+    cid, idx, g = int(cid), int(idx), memory_games.get(int(cid))
+    if not g or idx in g['mat'] or idx in g['flp']: return
+
+    g['flp'].append(idx)
+    if len(g['flp']) == 1:
+        bot.edit_message_reply_markup(cid, c.message.message_id, reply_markup=get_mem_kb(cid))
+    elif len(g['flp']) == 2:
+        g['mvs'] += 1
+        i1, i2 = g['flp']
+        if g['cds'][i1] == g['cds'][i2]:
+            g['mat'].add(i1); g['mat'].add(i2); g['flp'] = []
+            if len(g['mat']) == 12:
+                bot.edit_message_text(f"🎉 **{g['u']} Jeet Gaya in {g['mvs']} moves!** 🏆", cid, c.message.message_id)
+                del memory_games[cid]; return
+            bot.edit_message_reply_markup(cid, c.message.message_id, reply_markup=get_mem_kb(cid))
+        else:
+            bot.edit_message_reply_markup(cid, c.message.message_id, reply_markup=get_mem_kb(cid))
+            def hide():
+                g['flp'] = []
+                try: bot.edit_message_reply_markup(cid, c.message.message_id, reply_markup=get_mem_kb(cid))
+                except: pass
+            threading.Timer(1.2, hide).start()
+        # ==================== WORD & MATHS ====================
+@bot.callback_query_handler(func=lambda c: c.data.startswith('ws_'))
+def w_scramble(c):
+    cid = int(c.data.split('_')[1])
+    it = random.choice(WORDS)
+    w = it['w']
+    j = list(w)
+    while ''.join(j) == w: random.shuffle(j)
+    word_games[cid] = {'w': w}
+    bot.send_message(cid, f"🔀 **Word Scramble!**\nLetters: **`{' '.join(j)}`**\nHint: _{it['h']}_\n👉 Chat me sahi word likho!", parse_mode="Markdown")
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith('wg_'))
+def w_guess(c):
+    cid = int(c.data.split('_')[1])
+    it = random.choice(WORDS)
+    w = it['w']
+    m = w[0] + " _ " * (len(w)-2) + w[-1]
+    word_games[cid] = {'w': w}
+    bot.send_message(cid, f"💡 **Word Guess!**\nWord: **`{m}`**\nHint: _{it['h']}_\n👉 Chat me pura word likho!", parse_mode="Markdown")
+
 @bot.callback_query_handler(func=lambda c: c.data.startswith('qm_'))
 def q_math(c):
+    cid = int(c.data.split('_')[1])
     n1, n2, op = random.randint(10, 50), random.randint(2, 10), random.choice(['+', '-', '*'])
     ans = eval(f"{n1} {op} {n2}")
     opts = list({ans, ans+2, ans-2, ans+5})
     random.shuffle(opts)
     kb = InlineKeyboardMarkup(row_width=2)
     for o in opts: kb.add(InlineKeyboardButton(str(o), callback_data=f"ma_{o}_{ans}"))
-    bot.send_message(c.message.chat.id, f"⚡ **{n1} {op} {n2} = ?**", reply_markup=kb)
+    bot.send_message(cid, f"⚡ **{n1} {op} {n2} = ?**", reply_markup=kb)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('ma_'))
 def ma_ans(c):
     _, s, a = c.data.split('_')
     if s == a:
-        bot.send_message(c.message.chat.id, f"🎉 Sahi! Answer: `{a}`", parse_mode="Markdown")
+        bot.send_message(c.message.chat.id, f"🎉 Sahi Jawab **{c.from_user.first_name}**! Answer: `{a}`")
         bot.delete_message(c.message.chat.id, c.message.message_id)
     else: bot.answer_callback_query(c.id, "❌ Galat!")
 
-# TTT Logic
+# ==================== TIC TAC TOE ====================
 def chk_ttt(b):
     for x,y,z in [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]:
         if b[x] == b[y] == b[z] and b[x] != " ": return b[x]
     return "Tie" if " " not in b else None
 
-# TTT AI
 @bot.callback_query_handler(func=lambda c: c.data.startswith('ta_'))
 def ttt_ai_menu(c):
     cid = int(c.data.split('_')[1])
@@ -141,8 +239,7 @@ def ttt_ai_start(c):
     _, cid, diff = c.data.split('_')
     cid = int(cid)
     ttt_games[cid] = {'p1': c.from_user, 'd': diff, 'b': [" "]*9}
-    kb = InlineKeyboardMarkup(row_width=3)
-    kb.add(*[InlineKeyboardButton("▫️", callback_data=f"tm_{cid}_{i}") for i in range(9)])
+    kb = InlineKeyboardMarkup(row_width=3).add(*[InlineKeyboardButton("▫️", callback_data=f"tm_{cid}_{i}") for i in range(9)])
     bot.send_message(cid, f"🤖 Match vs AI ({diff})!\nTurn: {c.from_user.first_name} (X)", reply_markup=kb)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('tm_'))
@@ -163,20 +260,18 @@ def ttt_ai_move(c):
                     g['b'][i] = ' '
             g['b'][ai_i] = 'O'
             w = chk_ttt(g['b'])
-    kb = InlineKeyboardMarkup(row_width=3)
-    kb.add(*[InlineKeyboardButton(g['b'][i] if g['b'][i] != " " else "▫️", callback_data=f"tm_{cid}_{i}") for i in range(9)])
+    kb = InlineKeyboardMarkup(row_width=3).add(*[InlineKeyboardButton(g['b'][i] if g['b'][i] != " " else "▫️", callback_data=f"tm_{cid}_{i}") for i in range(9)])
     if w:
         txt = "🤝 Draw!" if w == "Tie" else ("🏆 You Won!" if w == 'X' else "🤖 AI Won!")
         bot.edit_message_text(txt, cid, c.message.message_id, reply_markup=kb)
         del ttt_games[cid]
     else: bot.edit_message_text("Turn: You (X)", cid, c.message.message_id, reply_markup=kb)
 
-# TTT DM 1v1 Room
 @bot.callback_query_handler(func=lambda c: c.data.startswith('tc_'))
 def ttt_c_room(c):
     cd = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     rooms[cd] = {'h': c.from_user, 'g': None, 'b': [" "]*9, 't': 'X', 'hm': None, 'gm': None}
-    url = f"https://t.me/share/url?url=https://t.me/Gaming_360_bot?start=j_{cd}&text=Aaja%20TTT%20khelte%20hain!%20Code:%20{cd}"
+    url = f"https://t.me/share/url?url=https://t.me/Gaming_360_bot?start=j_{cd}&text=Play%20TTT%20Code:%20{cd}"
     kb = InlineKeyboardMarkup().add(InlineKeyboardButton("📲 Invite Friend", url=url))
     bot.send_message(c.message.chat.id, f"🎟️ **Code:** `{cd}`\nDost ko share karo!", reply_markup=kb, parse_mode="Markdown")
 
@@ -216,17 +311,19 @@ def ttt_dm_mv(c):
             bot.edit_message_text(f"Turn: **{nxt}** ({r['t']})", r['g'].id, r['gm'], reply_markup=kb, parse_mode="Markdown")
         except: pass
 
-# Bingo
+# ==================== BINGO (3-LINE WIN & LIVE DM) ====================
 def gen_b():
-    nums = list(range(1, 26))
-    random.shuffle(nums)
+    nums = list(range(1, 26)); random.shuffle(nums)
     return [nums[i:i+5] for i in range(0, 25, 5)]
 
 def chk_b(m):
-    c = sum(1 for r in range(5) if all(m[r][c] for c in range(5))) + sum(1 for col in range(5) if all(m[r][col] for r in range(5)))
+    c = sum(1 for r in range(5) if all(m[r][col] for col in range(5))) + sum(1 for col in range(5) if all(m[r][col] for r in range(5)))
     if all(m[i][i] for i in range(5)): c += 1
     if all(m[i][4-i] for i in range(5)): c += 1
     return c
+
+def render_b(b, m):
+    return "\n".join([" | ".join("❌ " if m[r][c] else f"{b[r][c]:02d}" for c in range(5)) for r in range(5)])
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('b_'))
 def b_lobby(c):
@@ -237,15 +334,15 @@ def b_lobby(c):
         InlineKeyboardButton("🤖 Add AI", callback_data=f"ba_{cid}"),
         InlineKeyboardButton("🚀 Start", callback_data=f"bs_{cid}")
     )
-    bot.send_message(cid, "🎲 **Bingo Lobby!**", reply_markup=kb)
+    bot.send_message(cid, "🎲 **Bingo Lobby Active!**\n🎯 Target: First to **3 Lines** Wins!", reply_markup=kb)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('bj_'))
 def b_join(c):
     cid = int(c.data.split('_')[1])
     g, u = games.get(cid), c.from_user
     if g and g['st'] == 'l' and u.id not in g['p']:
-        g['p'][u.id] = {'n': u.first_name, 'b': gen_b(), 'm': [[False]*5 for _ in range(5)], 'ai': False}
-        bot.send_message(cid, f"✅ **{u.first_name}** added!")
+        g['p'][u.id] = {'n': u.first_name, 'b': gen_b(), 'm': [[False]*5 for _ in range(5)], 'ai': False, 'msg_id': None}
+        bot.send_message(cid, f"✅ **{u.first_name}** added to Bingo!")
     bot.answer_callback_query(c.id, "Joined!")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('ba_'))
@@ -253,8 +350,8 @@ def b_ai(c):
     cid = int(c.data.split('_')[1])
     g = games.get(cid)
     if g and g['st'] == 'l' and 999 not in g['p']:
-        g['p'][999] = {'n': '🤖 AI Bot', 'b': gen_b(), 'm': [[False]*5 for _ in range(5)], 'ai': True}
-        bot.send_message(cid, "🤖 AI Bot added!")
+        g['p'][999] = {'n': '🤖 AI Bot', 'b': gen_b(), 'm': [[False]*5 for _ in range(5)], 'ai': True, 'msg_id': None}
+        bot.send_message(cid, "🤖 **AI Bot** added to Bingo!")
     bot.answer_callback_query(c.id, "AI Added!")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith('bs_'))
@@ -262,16 +359,17 @@ def b_start(c):
     cid = int(c.data.split('_')[1])
     g = games.get(cid)
     if not g or len(g['p']) < 2:
-        bot.answer_callback_query(c.id, "Min 2 players required!")
+        bot.answer_callback_query(c.id, "Kam se kam 2 players chahiye!")
         return
     g['st'], g['ord'] = 'play', list(g['p'].keys())
     for pid, d in g['p'].items():
         if not d['ai']:
-            b_txt = "\n".join(" | ".join("❌" if d['m'][r][col] else f"{d['b'][r][col]:02d}" for col in range(5)) for r in range(5))
-            try: bot.send_message(pid, f"📋 Board:\n`{b_txt}`", parse_mode="Markdown")
+            try:
+                msg = bot.send_message(pid, f"📋 **Aapka Bingo Board (Live):**\n`{render_b(d['b'], d['m'])}`\n\n🎯 Target: 3 Lines", parse_mode="Markdown")
+                d['msg_id'] = msg.message_id
             except: pass
     p1 = g['ord'][0]
-    bot.send_message(cid, f"🔥 Bingo Started! Turn: **{g['p'][p1]['n']}** (1-25 type karo)")
+    bot.send_message(cid, f"🔥 **Bingo Shuru!**\n👉 Pehli Baari: **{g['p'][p1]['n']}** (Chat me 1-25 number likho)")
     if g['p'][p1]['ai']: proc_b_ai(cid)
 
 def proc_b_ai(cid):
@@ -284,25 +382,42 @@ def proc_b_num(cid, num):
     g = games.get(cid)
     if not g or g['st'] != 'play': return
     g['cl'].add(num)
+    score_report, winner = [], None
+
     for pid, d in g['p'].items():
         for r in range(5):
             for col in range(5):
                 if d['b'][r][col] == num: d['m'][r][col] = True
-        if chk_b(d['m']) >= 5:
-            bot.send_message(cid, f"🎉 **BINGO! {d['n']} JEET GAYA!**")
-            del games[cid]
-            return
+        lines = chk_b(d['m'])
+        score_report.append(f"• **{d['n']}**: {'🟢'*lines}{'⚪'*(3-min(3, lines))} ({lines}/3)")
+        if not d['ai'] and d['msg_id']:
+            try:
+                bot.edit_message_text(f"📋 **Live Board:**\n`{render_b(d['b'], d['m'])}`\n📢 Cut: **{num}**\n📊 Lines: {lines}/3", chat_id=pid, message_id=d['msg_id'], parse_mode="Markdown")
+            except: pass
+        if lines >= 3 and not winner: winner = d['n']
+
+    if winner:
+        bot.send_message(cid, f"🏆 **BINGO! {winner} JEET GAYA!** 🎉\n\n" + "\n".join(score_report), parse_mode="Markdown")
+        del games[cid]; return
+
     g['idx'] = (g['idx'] + 1) % len(g['ord'])
     nxt = g['ord'][g['idx']]
-    bot.send_message(cid, f"📢 Number **{num}** cut! Next: **{g['p'][nxt]['n']}**")
+    bot.send_message(cid, f"📢 Cut: **{num}**\n\n📊 Scoreboard:\n" + "\n".join(score_report) + f"\n\n👉 Turn: **{g['p'][nxt]['n']}**", parse_mode="Markdown")
     if g['p'][nxt]['ai']: threading.Timer(2.0, proc_b_ai, args=[cid]).start()
 
-@bot.message_handler(func=lambda m: m.text and m.text.isdigit())
-def b_txt_handle(m):
-    g = games.get(m.chat.id)
-    if not g or g['st'] != 'play' or m.from_user.id != g['ord'][g['idx']]: return
-    n = int(m.text)
-    if 1 <= n <= 25 and n not in g['cl']: proc_b_num(m.chat.id, n)
+# ==================== TEXT INPUT HANDLER ====================
+@bot.message_handler(func=lambda m: m.text)
+def handle_texts(m):
+    cid, txt = m.chat.id, m.text.strip().upper()
+    if cid in word_games and txt == word_games[cid]['w']:
+        bot.reply_to(m, f"🎉 **KAMAAL! {m.from_user.first_name} ne sahi jawab diya!**\nWord: **`{txt}`**", parse_mode="Markdown")
+        del word_games[cid]; return
+
+    if m.text.isdigit():
+        g = games.get(cid)
+        if g and g['st'] == 'play' and m.from_user.id == g['ord'][g['idx']]:
+            n = int(m.text)
+            if 1 <= n <= 25 and n not in g['cl']: proc_b_num(cid, n)
 
 bot.infinity_polling()
-                                 
+    
