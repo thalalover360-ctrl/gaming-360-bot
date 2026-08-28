@@ -150,7 +150,6 @@ def show_main_menu(message):
 def handle_sections(call):
     chat_id = call.message.chat.id
     sec = call.data.split('_')[1]
-    is_private = call.message.chat.type == "private"
 
     if sec == "games":
         markup = InlineKeyboardMarkup(row_width=1)
@@ -340,10 +339,10 @@ def handle_dm_ttt_move(call):
     markup = get_dm_ttt_markup(code)
     
     if w:
-        res_txt = "🤝 **Match Draw!**" if w == "Tie" else f"🏆 **{(r['host'].first_name if w == 'X' else r['guest'].first_name)} Match Jeet Gaya! ({w})**"
+        winner_text = "🤝 **Match Draw!**" if w == "Tie" else f"🏆 **{(r['host'].first_name if w == 'X' else r['guest'].first_name)} Match Jeet Gaya! ({w})**"
         try:
-            bot.edit_message_text(res_txt, chat_id=r['host'].id, message_id=r['host_msg_id'], reply_markup=markup, parse_mode="Markdown")
-            bot.edit_message_text(res_txt, chat_id=r['guest'].id, message_id=r['guest_msg_id'], reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text(winner_text, chat_id=r['host'].id, message_id=r['host_msg_id'], reply_markup=markup, parse_mode="Markdown")
+            bot.edit_message_text(winner_text, chat_id=r['guest'].id, message_id=r['guest_msg_id'], reply_markup=markup, parse_mode="Markdown")
         except: pass
         del rooms[code]
         return
@@ -435,4 +434,5 @@ def join_ttt(call):
         bot.send_message(chat_id, f"✅ **{user.first_name}** (X) ready hai! Koi aur Join dabaye.")
     elif ttt_games[chat_id].get('p2') is None and ttt_games[chat_id]['p1'].id != user.id:
         ttt_games[chat_id]['p2'] = user
-        p1_name = ttt_games[cha
+        p1_name = ttt_games[chat_id]['p1'].first_name
+        bot.send_m
