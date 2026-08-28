@@ -7,26 +7,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Render Port Binding Server
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Gaming 360 Bot is Live 24/7!")
-    def log_message(self, format, *args):
-        return
-
-def run_server():
-    try:
-        port = int(os.environ.get("PORT", 8080))
-        server = HTTPServer(("0.0.0.0", port), SimpleHandler)
-        print(f"Web server active on port {port}")
-        server.serve_forever()
-    except Exception as e:
-        print(f"Server error: {e}")
-
-threading.Thread(target=run_server, daemon=True).start()
-
 # Bot Setup
 TOKEN = "8963859901:AAGT3dYv2NraTFV69ZBQ8f5jEcqhcuIWcis"
 bot = telebot.TeleBot(TOKEN, threaded=True)
@@ -210,7 +190,6 @@ def handle_mind_start(call):
 def send_quiz_question(chat_id, category):
     q_list = CBSE_QUESTIONS.get(category, CBSE_QUESTIONS["10"])
     q_data = random.choice(q_list)
-    
     opts = list(q_data['opts'])
     random.shuffle(opts)
     
@@ -438,4 +417,13 @@ def join_ttt(call):
     chat_id = int(call.data.split('_')[2])
     user = call.from_user
     if chat_id not in ttt_games:
-        ttt_games[chat_id] = {'m
+        ttt_games[chat_id] = {'mode': 'pvp', 'p1': user, 'p2': None, 'board': [" "]*9, 'turn': 'X'}
+        bot.send_message(chat_id, f"✅ **{user.first_name}** (X) ready hai! Koi aur Join dabaye.")
+    elif ttt_games[chat_id].get('p2') is None and ttt_games[chat_id]['p1'].id != user.id:
+        ttt_games[chat_id]['p2'] = user
+        p1_name = ttt_games[chat_id]['p1'].first_name
+        bot.send_message(chat_id, f"🔥 Game Start!\n❌: {p1_name}\n⭕: {user.first_name}\nBaari: {p1_name}", reply_markup=get_ttt_markup(chat_id))
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('ttt_mv_'))
+def handle_ttt_move(call):
+    _, _, chat_i
