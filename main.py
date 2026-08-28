@@ -1,7 +1,25 @@
+import os
 import random
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+# Render Port Binding Server
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is Live and Running 24/7!")
+
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+    server.serve_forever()
+
+threading.Thread(target=run_server, daemon=True).start()
+
+# Bot Setup
 TOKEN = "8963859901:AAGT3dYv2NraTFV69ZBQ8f5jEcqhcuIWcis"
 bot = telebot.TeleBot(TOKEN)
 
@@ -159,7 +177,7 @@ def start_bingo_game(call):
         bot.answer_callback_query(call.id, "Kam se kam 2 players chahiye!")
         return
     g['state'] = 'playing'
-    g['turn_order'] = list(game['turn_order'] if 'turn_order' in (game:={}) else g['players'].keys())
+    g['turn_order'] = list(g['players'].keys())
     for pid, pdata in g['players'].items():
         try: bot.send_message(pid, f"📋 Board:\n`{format_bingo(pdata['board'], pdata['marked'])}`", parse_mode="Markdown")
         except: pass
@@ -221,4 +239,3 @@ def handle_bingo_turn(message):
     bot.send_message(chat_id, f"📢 Number **{num}** cut!\nAgli baari: **{g['players'][g['turn_order'][g['turn_idx']]]['name']}**")
 
 bot.infinity_polling()
-  
