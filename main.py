@@ -4,12 +4,12 @@ import sqlite3
 import telebot
 from telebot import types
 
-# ==================== PART 1: CORE SETUP, DATABASE & INTERFACE ==================== #
-
+# 1. BOT CONFIGURATION
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8963859901:AAGT3dYv2NraTFV69ZBQ8f5jEcqhcuIWcis")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-DB_NAME = "games_hub.db"
+# 2. DATABASE SETUP
+DB_NAME = "arcade_master.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -20,8 +20,7 @@ def init_db():
             username TEXT,
             first_name TEXT,
             score INTEGER DEFAULT 0,
-            games_played INTEGER DEFAULT 0,
-            active_game TEXT DEFAULT NULL
+            games_played INTEGER DEFAULT 0
         )
     """)
     conn.commit()
@@ -61,30 +60,32 @@ def get_user_stats(user_id):
 
 init_db()
 
-# --- MAIN MENU UI ---
+# 3. MAIN MENU UI
 def get_main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    btn1 = types.InlineKeyboardButton("1. 🎯 Guess Game", callback_data="game_guess")
-    btn2 = types.InlineKeyboardButton("2. 🧠 Maths & Brain Quiz", callback_data="game_quiz")
-    btn3 = types.InlineKeyboardButton("3. 🔤 Word Game", callback_data="game_word")
-    btn4 = types.InlineKeyboardButton("4. ❌⭕ Tic Tac Toe", callback_data="game_tictactoe")
-    btn5 = types.InlineKeyboardButton("5. 🃏 Memory Game", callback_data="game_memory")
-    btn6 = types.InlineKeyboardButton("6. 🎱 Bingo", callback_data="game_bingo")
-    btn7 = types.InlineKeyboardButton("7. 💣 Bomb (Mines)", callback_data="game_mines")
-    btn_stats = types.InlineKeyboardButton("📊 My Stats & Score", callback_data="view_stats")
-    markup.add(btn1, btn2, btn3, btn4, btn5, btn6, btn7, btn_stats)
+    markup.add(
+        types.InlineKeyboardButton("🎯 1. Guess Game (Movies, Sports, Anime)", callback_data="game_guess"),
+        types.InlineKeyboardButton("🧠 2. Maths & Brain Quiz (Hard Level)", callback_data="game_quiz"),
+        types.InlineKeyboardButton("🔤 3. Word Games (Guess, Scramble)", callback_data="game_word"),
+        types.InlineKeyboardButton("❌⭕ 4. Tic Tac Toe (AI & PvP)", callback_data="game_tictactoe"),
+        types.InlineKeyboardButton("🃏 5. Memory Game (4x4 Matching)", callback_data="game_memory"),
+        types.InlineKeyboardButton("🎱 6. Bingo 5x5 (DM Realtime Sync)", callback_data="game_bingo"),
+        types.InlineKeyboardButton("💣 7. Mines & Dragon (Survival Duel)", callback_data="game_mines"),
+        types.InlineKeyboardButton("📊 My Stats & Scorecard", callback_data="view_stats")
+    )
     return markup
 
 @bot.message_handler(commands=['start', 'menu'])
 def send_welcome(message):
     add_or_update_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
-    welcome_text = (
-        f"👋 *Welcome {message.from_user.first_name} to the 7-in-1 Arcade Hub!*\n\n"
-        "Niche diye gaye menu se game choose karo:"
+    bot.send_message(
+        message.chat.id,
+        f"👋 *Welcome {message.from_user.first_name} to 7-in-1 Arcade Hub!*\n\nNiche se koi bhi game choose karo:",
+        parse_mode="Markdown",
+        reply_markup=get_main_menu()
     )
-    bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=get_main_menu())
-    # ==================== PART 2: GUESS GAME ==================== #
 
+# 4. GUESS DATA
 QUESTIONS_DATA = {
     "movie": {
         "easy": [
@@ -98,7 +99,7 @@ QUESTIONS_DATA = {
             {"hint": "🎬 'Babu Moshai, zindagi badi honi chahiye, lambi nahi.'", "ans": "Anand", "options": ["Anand", "Kati Patang", "Aradhana", "Amar Prem"]}
         ],
         "hard": [
-            {"hint": "🎬 Tumbbad movie ke main rakshas (deity) ka kya naam tha?", "ans": "Hastar", "options": ["Hastar", "Brahmarakshas", "Betaal", "Yaksha"]},
+            {"hint": "🎬 Tumbbad movie ke main rakshas ka kya naam tha?", "ans": "Hastar", "options": ["Hastar", "Brahmarakshas", "Betaal", "Yaksha"]},
             {"hint": "🎬 Gangs of Wasseypur me Faizal Khan ka role kisne play kiya tha?", "ans": "Nawazuddin Siddiqui", "options": ["Manoj Bajpayee", "Pankaj Tripathi", "Nawazuddin Siddiqui", "Jaideep Ahlawat"]},
             {"hint": "🎬 Christopher Nolan ki time inversion par based movie kaunsi hai?", "ans": "Tenet", "options": ["Inception", "Interstellar", "Tenet", "Memento"]}
         ]
@@ -145,326 +146,91 @@ def get_guess_category_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🎬 1. Movies & Bollywood", callback_data="g_cat_movie"),
-        types.InlineKeyboardButton("🏏 2. Sports (Cricket Special)", callback_data="g_cat_sports"),
+        types.InlineKeyboardButton("🏏 2. Sports & Cricket", callback_data="g_cat_sports"),
         types.InlineKeyboardButton("🍥 3. Anime & Cartoons", callback_data="g_cat_anime"),
         types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
     )
     return markup
 
-def get_guess_diff_menu(cat):
+def get_guess_diff_menu(category):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🟢 Easy (+10 pts)", callback_data=f"g_diff_{cat}_easy"),
-        types.InlineKeyboardButton("🟡 Medium (+20 pts)", callback_data=f"g_diff_{cat}_med"),
-        types.InlineKeyboardButton("🔴 Hard (+30 pts)", callback_data=f"g_diff_{cat}_hard"),
-        types.InlineKeyboardButton("🔙 Choose Another Category", callback_data="game_guess")
+        types.InlineKeyboardButton("🟢 Easy (+10 pts)", callback_data=f"g_diff_{category}_easy"),
+        types.InlineKeyboardButton("🟡 Medium (+20 pts)", callback_data=f"g_diff_{category}_med"),
+        types.InlineKeyboardButton("🔴 Hard (+30 pts)", callback_data=f"g_diff_{category}_hard"),
+        types.InlineKeyboardButton("🔙 Back to Categories", callback_data="game_guess")
     )
     return markup
-    # ==================== PART 3: TIC TAC TOE (AI & 2-PLAYER PVP) ==================== #
 
+# 5. TIC TAC TOE
 ttt_games = {}
 
 def create_ttt_board(game_id):
     game = ttt_games.get(game_id)
     if not game:
         return None
-    
     board = game["board"]
     markup = types.InlineKeyboardMarkup(row_width=3)
     buttons = []
-    
     for i in range(9):
         val = board[i]
         text = "❌" if val == "X" else ("⭕" if val == "O" else "⬜")
-        callback = f"ttt_move_{game_id}_{i}" if val == " " and not game["game_over"] else "ttt_none"
-        buttons.append(types.InlineKeyboardButton(text, callback_data=callback))
-    
+        cb = f"ttt_move_{game_id}_{i}" if val == " " and not game["game_over"] else "none"
+        buttons.append(types.InlineKeyboardButton(text, callback_data=cb))
     markup.add(buttons[0], buttons[1], buttons[2])
     markup.add(buttons[3], buttons[4], buttons[5])
     markup.add(buttons[6], buttons[7], buttons[8])
-    
     if game["game_over"]:
-        markup.add(
-            types.InlineKeyboardButton("🔄 Rematch", callback_data=f"ttt_rematch_{game_id}"),
-            types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-        )
+        markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
     else:
-        markup.add(types.InlineKeyboardButton("🚪 Forfeit / Quit", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("🚪 Forfeit", callback_data="main_menu"))
     return markup
 
-def check_ttt_winner(board):
-    win_conditions = [
-        (0, 1, 2), (3, 4, 5), (6, 7, 8),
-        (0, 3, 6), (1, 4, 7), (2, 5, 8),
-        (0, 4, 8), (2, 4, 6)
-    ]
-    for a, b, c in win_conditions:
-        if board[a] != " " and board[a] == board[b] == board[c]:
-            return board[a]
-    if " " not in board:
-        return "Draw"
-    return None
+def check_ttt_winner(b):
+    wins = [(0,1,2),(3,4,5),(6,7,8),(0,3,6),(1,4,7),(2,5,8),(0,4,8),(2,4,6)]
+    for x,y,z in wins:
+        if b[x] != " " and b[x] == b[y] == b[z]:
+            return b[x]
+    return "Draw" if " " not in b else None
 
-def get_ai_move(board):
+def get_ai_move(b):
     for i in range(9):
-        if board[i] == " ":
-            board[i] = "O"
-            if check_ttt_winner(board) == "O":
-                board[i] = " "
-                return i
-            board[i] = " "
-
+        if b[i] == " ":
+            b[i] = "O"
+            if check_ttt_winner(b) == "O":
+                b[i] = " "; return i
+            b[i] = " "
     for i in range(9):
-        if board[i] == " ":
-            board[i] = "X"
-            if check_ttt_winner(board) == "X":
-                board[i] = " "
-                return i
-            board[i] = " "
-
-    if board[4] == " ":
-        return 4
-    
-    empty_spots = [i for i, val in enumerate(board) if val == " "]
-    return random.choice(empty_spots) if empty_spots else None
+        if b[i] == " ":
+            b[i] = "X"
+            if check_ttt_winner(b) == "X":
+                b[i] = " "; return i
+            b[i] = " "
+    if b[4] == " ": return 4
+    empty = [i for i, v in enumerate(b) if v == " "]
+    return random.choice(empty) if empty else None
 
 def get_ttt_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🤖 Play vs AI (Bot)", callback_data="ttt_start_ai"),
-        types.InlineKeyboardButton("👥 Play with Friend (2P / Group)", callback_data="ttt_start_pvp"),
+        types.InlineKeyboardButton("🤖 Play vs Bot (AI)", callback_data="ttt_start_ai"),
         types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
     )
     return markup
-        # ==================== PART 4: 5x5 MULTIPLAYER BINGO (GROUP + DM SYNC) ==================== #
+# ==================== SLOT 2: QUIZ, WORDS, MINES, BINGO & ROUTING ==================== #
 
-bingo_games = {}
-bingo_waiting_room = {}
-
-def generate_bingo_board():
-    nums = list(range(1, 26))
-    random.shuffle(nums)
-    return nums
-
-def check_bingo_lines(board, marked_indices):
-    lines = 0
-    # Rows check
-    for r in range(5):
-        if all((r * 5 + c) in marked_indices for c in range(5)):
-            lines += 1
-    # Columns check
-    for c in range(5):
-        if all((r * 5 + c) in marked_indices for r in range(5)):
-            lines += 1
-    # Diagonal 1
-    if all((i * 6) in marked_indices for i in range(5)):
-        lines += 1
-    # Diagonal 2
-    if all(((i + 1) * 4) in marked_indices for i in range(5)):
-        lines += 1
-    return min(lines, 5)
-
-def render_bingo_board(game_id, user_id):
-    game = bingo_games.get(game_id)
-    if not game:
-        return None
-    
-    player_data = game["players"][user_id]
-    board = player_data["board"]
-    marked = game["marked_numbers"]
-    
-    markup = types.InlineKeyboardMarkup(row_width=5)
-    buttons = []
-    
-    for idx, num in enumerate(board):
-        if num in marked:
-            btn_text = "❌"
-            callback = "bingo_none"
-        else:
-            btn_text = str(num)
-            callback = f"bg_cut_{game_id}_{num}" if game["turn"] == user_id and not game["game_over"] else "bingo_none"
-        buttons.append(types.InlineKeyboardButton(btn_text, callback_data=callback))
-    
-    for i in range(0, 25, 5):
-        markup.add(buttons[i], buttons[i+1], buttons[i+2], buttons[i+3], buttons[i+4])
-    
-    if game["game_over"]:
-        markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
-    else:
-        markup.add(types.InlineKeyboardButton("🚪 Leave Game", callback_data="main_menu"))
-    return markup
-
-def get_bingo_letters(lines_count):
-    letters = ["B", "I", "N", "G", "O"]
-    res = []
-    for i in range(5):
-        if i < lines_count:
-            res.append(f"🔥*{letters[i]}*")
-        else:
-            res.append(f"⚪{letters[i]}")
-    return " ".join(res)
-
-def update_bingo_dms(bot_instance, game_id, last_action_text=""):
-    game = bingo_games.get(game_id)
-    if not game:
-        return
-
-    p1_id, p2_id = game["player_ids"]
-    turn_id = game["turn"]
-
-    for p_id in [p1_id, p2_id]:
-        opp_id = p2_id if p_id == p1_id else p1_id
-        p_name = game["players"][p_id]["name"]
-        opp_name = game["players"][opp_id]["name"]
-        
-        my_board = game["players"][p_id]["board"]
-        my_marked_indices = [idx for idx, val in enumerate(my_board) if val in game["marked_numbers"]]
-        my_lines = check_bingo_lines(my_board, my_marked_indices)
-        
-        bingo_status = get_bingo_letters(my_lines)
-        turn_status = "👉 *Aapki Chaal hai!*" if turn_id == p_id and not game["game_over"] else f"⏳ *{opp_name} ki baari hai...*"
-
-        text = (
-            f"🎱 *BINGO 5x5 MATCH*\n"
-            f"👤 Player: `{p_name}` vs `{opp_name}`\n"
-            f"🎯 Status: {bingo_status} ({my_lines}/5 Lines)\n\n"
-            f"{last_action_text}\n"
-            f"{turn_status}\n\n"
-            f"📌 Grid me se number dabakar strike karo:"
-        )
-
-        if game["game_over"]:
-            if game["winner"] == "Draw":
-                text = f"🤝 *Game Draw ho gaya!*\n\nDono ne ek sath BINGO complete kiya!"
-            elif game["winner"] == p_id:
-                text = f"🏆 *BINGO!! CONGRATULATIONS {p_name}!* 🎉\nAapne 5 lines bana kar match jeet liya!"
-            else:
-                text = f"💔 *Match Over!*\n{opp_name} ne pehle BINGO bana liya!"
-
-        try:
-            bot_instance.edit_message_text(
-                text,
-                chat_id=p_id,
-                message_id=game["players"][p_id]["msg_id"],
-                parse_mode="Markdown",
-                reply_markup=render_bingo_board(game_id, p_id)
-            )
-        except Exception:
-            pass
-
-@bot.message_handler(commands=['bingo'])
-def start_group_bingo_lobby(message):
-    if message.chat.type in ['group', 'supergroup']:
-        game_code = f"bg_{message.chat.id}_{message.message_id}"
-        bingo_waiting_room[game_code] = {
-            "p1_id": message.from_user.id,
-            "p1_name": message.from_user.first_name,
-            "group_id": message.chat.id
-        }
-        
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🎮 Join Bingo Challenge", callback_data=f"join_bg_{game_code}"))
-        
-        bot.reply_to(
-            message,
-            f"🎱 *BINGO 5x5 CHALLENGE!*\n\n"
-            f"👤 Host: *{message.from_user.first_name}*\n"
-            f"Koi bhi friend niche button daba kar join kare!",
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-    else:
-        bot.reply_to(message, "Ye command group me use karo dosto ke sath khelne ke liye!")
-        # ==================== PART 5: MATHS & BRAIN QUIZ ==================== #
-
+# --- 6. QUIZ DATA ---
 QUIZ_DATA = {
     "maths": [
-        {
-            "q": "🔢 If log₂(x) + log₂(x - 2) = 3, find the real value of x:",
-            "options": ["4", "2", "-2", "8"],
-            "ans": "4",
-            "exp": "log₂(x(x - 2)) = 3 ⟹ x² - 2x = 8 ⟹ x² - 2x - 8 = 0 ⟹ (x-4)(x+2)=0. Since x > 2, x = 4."
-        },
-        {
-            "q": "🔢 For what value of k does the equation x² - (k - 2)x + (k² - 4) = 0 have equal roots?",
-            "options": ["k = 2, -6/3", "k = -2, 10/3", "k = 2, -2", "k = 0, 4"],
-            "ans": "k = -2, 10/3",
-            "exp": "Discriminant D = 0 ⟹ (k - 2)² - 4(k² - 4) = 0 ⟹ -3k² - 4k + 20 = 0 ⟹ (3k - 10)(k + 2) = 0."
-        },
-        {
-            "q": "🔢 Find the value of: sin²(10°) + sin²(20°) + ... + sin²(80°) + sin²(90°)",
-            "options": ["5", "4.5", "5.5", "4"],
-            "ans": "5",
-            "exp": "Pairs: (sin²10+sin²80)=1, (sin²20+sin²70)=1, (sin²30+sin²60)=1, (sin²40+sin²50)=1, sin²90=1. Total = 1*4 + 1 = 5."
-        },
-        {
-            "q": "🔢 If the 3rd term of a G.P. is 4, what is the product of its first 5 terms?",
-            "options": ["4⁵ = 1024", "4³ = 64", "4⁴ = 256", "512"],
-            "ans": "4⁵ = 1024",
-            "exp": "Terms: a/r², a/r, a, ar, ar². Product = a⁵. Given a = 4, so Product = 4⁵ = 1024."
-        },
-        {
-            "q": "🔢 How many distinct 4-digit numbers can be formed using {0, 1, 2, 3, 4, 5} without repetition?",
-            "options": ["300", "360", "240", "120"],
-            "ans": "300",
-            "exp": "First digit (non-zero): 5 choices. Remaining 3 digits: 5 × 4 × 3 = 60 choices. Total = 5 × 60 = 300."
-        },
-        {
-            "q": "🔢 What is the limit: lim(x→0) [sin(5x) / tan(2x)] ?",
-            "options": ["5/2", "2/5", "1", "0"],
-            "ans": "5/2",
-            "exp": "[sin(5x)/(5x)] * [(2x)/tan(2x)] * (5/2) = 1 * 1 * (5/2) = 5/2."
-        },
-        {
-            "q": "🔢 If Set A has 4 elements, what is the number of non-empty proper subsets of A?",
-            "options": ["14", "15", "16", "13"],
-            "ans": "14",
-            "exp": "Total subsets = 2⁴ = 16. Subtract empty set (1) and self (1) ⟹ 16 - 2 = 14."
-        },
-        {
-            "q": "🔢 The sum of roots of 3x² - kx + 6 = 0 is 4. Find the value of k.",
-            "options": ["12", "6", "-12", "4"],
-            "ans": "12",
-            "exp": "Sum of roots = -(-k)/3 = k/3 = 4 ⟹ k = 12."
-        }
+        {"q": "🔢 If log₂(x) + log₂(x - 2) = 3, find the real value of x:", "options": ["4", "2", "-2", "8"], "ans": "4", "exp": "log₂(x(x - 2)) = 3 ⟹ x² - 2x = 8 ⟹ x = 4."},
+        {"q": "🔢 Find the value of: sin²(10°) + sin²(20°) + ... + sin²(90°)", "options": ["5", "4.5", "5.5", "4"], "ans": "5", "exp": "Pairs sum to 1 + sin²(90) = 4 + 1 = 5."},
+        {"q": "🔢 If the 3rd term of a G.P. is 4, product of first 5 terms is:", "options": ["4⁵ = 1024", "4³ = 64", "4⁴ = 256", "512"], "ans": "4⁵ = 1024", "exp": "Product = a⁵ = 4⁵ = 1024."},
+        {"q": "🔢 Limit: lim(x→0) [sin(5x) / tan(2x)] = ?", "options": ["5/2", "2/5", "1", "0"], "ans": "5/2", "exp": "Standard limits evaluate to 5/2."}
     ],
     "brain": [
-        {
-            "q": "🧠 Complete the series: 2, 6, 12, 20, 30, 42, ?",
-            "options": ["56", "54", "60", "52"],
-            "ans": "56",
-            "exp": "Pattern: 1×2, 2×3, 3×4, 4×5, 5×6, 6×7, 7×8 = 56."
-        },
-        {
-            "q": "🧠 A doctor gives you 3 pills and tells you to take one every 30 minutes. How long will the pills last?",
-            "options": ["60 minutes", "90 minutes", "30 minutes", "120 minutes"],
-            "ans": "60 minutes",
-            "exp": "Pill 1 at 0 min, Pill 2 at 30 min, Pill 3 at 60 min. Total duration = 60 minutes."
-        },
-        {
-            "q": "🧠 Look at this pattern: 8 + 2 = 16106, 5 + 4 = 2091, 9 + 6 = 54153. What is 7 + 3 = ?",
-            "options": ["21104", "21103", "10214", "2174"],
-            "ans": "21104",
-            "exp": "Structure: (a×b)(a+b)(a-b) ⟹ 7×3=21, 7+3=10, 7-3=4 ⟹ 21104."
-        },
-        {
-            "q": "🧠 If 5 cats can catch 5 mice in 5 minutes, how many cats are needed to catch 100 mice in 100 minutes?",
-            "options": ["5", "100", "20", "50"],
-            "ans": "5",
-            "exp": "1 cat catches 1 mouse in 5 minutes. So in 100 minutes, 1 cat catches 20 mice. 5 cats will catch 100 mice."
-        },
-        {
-            "q": "🧠 Pointing to a photograph, a man said: 'I have no brother or sister, but that man's father is my father's son.' Who was in the photo?",
-            "options": ["His Son", "His Father", "Himself", "His Grandson"],
-            "ans": "His Son",
-            "exp": "'My father's son' with no siblings = Himself. So 'that man's father is himself' ⟹ Photo is of his son."
-        },
-        {
-            "q": "🧠 In a code, CRICKET is written as FULFNHW. How is MATCH written in that code?",
-            "options": ["PDWFK", "PDVFK", "OCWFK", "PDWEL"],
-            "ans": "PDWFK",
-            "exp": "Each letter shifted +3 positions: M+3=P, A+3=D, T+3=W, C+3=F, H+3=K."
-        }
+        {"q": "🧠 Series: 2, 6, 12, 20, 30, 42, ?", "options": ["56", "54", "60", "52"], "ans": "56", "exp": "Pattern: n(n+1) ⟹ 7×8 = 56."},
+        {"q": "🧠 A doctor gives 3 pills to take every 30 mins. How long do they last?", "options": ["60 mins", "90 mins", "30 mins", "120 mins"], "ans": "60 mins", "exp": "Pills taken at 0, 30, and 60 minutes."},
+        {"q": "🧠 If 5 cats catch 5 mice in 5 mins, how many cats catch 100 mice in 100 mins?", "options": ["5", "100", "20", "50"], "ans": "5", "exp": "Rate is 1 cat = 1 mouse / 5 min. 5 cats catch 100 in 100 mins."}
     ]
 }
 
@@ -473,652 +239,362 @@ active_quiz_sessions = {}
 def get_quiz_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📐 1. Class 10/11 Hard Maths", callback_data="qz_start_maths"),
-        types.InlineKeyboardButton("🧩 2. Logical Brain Riddles & Patterns", callback_data="qz_start_brain"),
+        types.InlineKeyboardButton("📐 1. Hard Maths", callback_data="qz_m_maths"),
+        types.InlineKeyboardButton("🧩 2. Brain Riddles", callback_data="qz_m_brain"),
         types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
     )
     return markup
-# ==================== PART 6: WORD GAMES (GUESS, SCRAMBLE & PVP CHAIN DUEL) ==================== #
 
+# --- 7. WORD GAMES ---
 WORD_DATABASE = [
     {"word": "PYTHON", "hint": "A popular high-level programming language"},
-    {"word": "GALAXY", "hint": "A huge collection of gas, dust, and billions of stars"},
-    {"word": "CRICKET", "hint": "A sport played with bat, ball, and wickets"},
-    {"word": "OXYGEN", "hint": "A vital gas necessary for human respiration"},
-    {"word": "ALGORITHM", "hint": "A step-by-step procedure for solving a problem"},
-    {"word": "SHADOW", "hint": "Dark area produced when an object blocks light"},
-    {"word": "MATRIX", "hint": "A rectangular array of numbers arranged in rows and columns"},
-    {"word": "VECTOR", "hint": "A quantity having both magnitude and direction"},
-    {"word": "PRISM", "hint": "A transparent glass that disperses light into spectrum"},
-    {"word": "GRAVITY", "hint": "The force that attracts a body toward the center of the earth"}
+    {"word": "GALAXY", "hint": "A massive system of stars, gas, and dust"},
+    {"word": "CRICKET", "hint": "A game with bat, ball, and wickets"},
+    {"word": "OXYGEN", "hint": "Essential gas for human breathing"},
+    {"word": "GRAVITY", "hint": "Force attracting bodies toward earth"}
 ]
 
-# Sessions storage
-active_word_guess = {}
-active_scramble = {}
-active_chain_duels = {}
-
-def get_word_menu():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🔍 1. Guess Word (Clue Quiz)", callback_data="wrd_mode_guess"),
-        types.InlineKeyboardButton("🔀 2. Scramble Unjumble", callback_data="wrd_mode_scramble"),
-        types.InlineKeyboardButton("⚔️ 3. Word Chain Duel (PvP Battle)", callback_data="wrd_mode_duel_info"),
-        types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
-    )
-    return markup
-
-def start_guess_word_session(user_id):
-    item = random.choice(WORD_DATABASE)
-    word = item["word"]
-    hint = item["hint"]
-    masked = " ".join(["_" for _ in word])
-    
-    # Store session
-    active_word_guess[user_id] = {
-        "word": word,
-        "hint": hint,
-        "revealed": set(),
-        "attempts_left": 5
-    }
-    return word, hint, masked
-
-def start_scramble_session(user_id):
-    item = random.choice(WORD_DATABASE)
-    word = item["word"]
-    scrambled = list(word)
-    while "".join(scrambled) == word:
-        random.shuffle(scrambled)
-    
-    scrambled_str = " ".join(scrambled)
-    active_scramble[user_id] = {
-        "word": word,
-        "hint": item["hint"]
-    }
-    return word, scrambled_str, item["hint"]
-
-# PvP Word Chain Duel Initializer
-def init_word_chain_duel(game_id, p1_id, p1_name, p2_id, p2_name, chat_id):
-    active_chain_duels[game_id] = {
-        "chat_id": chat_id,
-        "p1_id": p1_id,
-        "p1_name": p1_name,
-        "p2_id": p2_id,
-        "p2_name": p2_name,
-        "turn": p1_id,
-        "round": 1,
-        "min_length": 2,
-        "time_limit": 40,
-        "used_words": set(),
-        "last_char": random.choice("ABCDEFGHIJKLMNOPRSTW"),
-        "game_over": False
-    }
-    return active_chain_duels[game_id]
-    # ==================== PART 7: MEMORY GAME (4x4 MULTIPLAYER CARD FLIP) ==================== #
-
+# --- 8. MEMORY GAME ---
 MEMORY_EMOJIS = ["🦁", "👑", "⚡", "🍕", "🚀", "💎", "🔥", "⚽"]
 memory_games = {}
 
-def create_memory_board():
-    cards = MEMORY_EMOJIS * 2
-    random.shuffle(cards)
-    return cards
-
-def render_memory_grid(game_id):
-    game = memory_games.get(game_id)
-    if not game:
-        return None
-    
-    cards = game["cards"]
-    revealed = game["revealed"]
-    matched = game["matched"]
-    
+def render_memory_grid(gid):
+    g = memory_games.get(gid)
+    if not g: return None
     markup = types.InlineKeyboardMarkup(row_width=4)
     buttons = []
-    
     for i in range(16):
-        if i in matched or i in revealed:
-            btn_text = cards[i]
-            cb_data = "mem_none"
-        else:
-            btn_text = "❓"
-            cb_data = f"mem_flip_{game_id}_{i}" if not game["game_over"] and not game["locked"] else "mem_none"
-        
-        buttons.append(types.InlineKeyboardButton(btn_text, callback_data=cb_data))
-    
-    for row in range(0, 16, 4):
-        markup.add(buttons[row], buttons[row+1], buttons[row+2], buttons[row+3])
-        
-    if game["game_over"]:
-        markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
-    else:
-        markup.add(types.InlineKeyboardButton("🚪 Forfeit Game", callback_data="main_menu"))
-        
+        text = g["cards"][i] if i in g["matched"] or i in g["revealed"] else "❓"
+        cb = f"mem_flip_{gid}_{i}" if not g["game_over"] and i not in g["matched"] and i not in g["revealed"] else "none"
+        buttons.append(types.InlineKeyboardButton(text, callback_data=cb))
+    for r in range(0, 16, 4):
+        markup.add(buttons[r], buttons[r+1], buttons[r+2], buttons[r+3])
+    markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
     return markup
 
-def get_memory_menu():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🤖 Play Single Player (Practice)", callback_data="mem_start_solo"),
-        types.InlineKeyboardButton("👥 Play with Friend (Group Duel)", callback_data="mem_start_pvp_info"),
-        types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
-    )
-    return markup
-    # ==================== PART 8: MINES & DRAGON (GROUP PVP SURVIVAL) ==================== #
-
+# --- 9. MINES GAME ---
 mines_games = {}
 
-def create_mines_board():
-    # 5 Dragons (Bombs) aur 20 Diamonds (Gems)
-    board = ["🐉"] * 5 + ["💎"] * 20
-    random.shuffle(board)
-    return board
-
-def render_mines_board(game_id):
-    game = mines_games.get(game_id)
-    if not game:
-        return None
-    
-    board = game["board"]
-    revealed = game["revealed"]
-    
+def render_mines_board(gid):
+    g = mines_games.get(gid)
+    if not g: return None
     markup = types.InlineKeyboardMarkup(row_width=5)
     buttons = []
-    
     for i in range(25):
-        if i in revealed:
-            btn_text = board[i]
-            cb_data = "mine_none"
-        else:
-            btn_text = "❓"
-            # Agar game over nahi hai tabhi click ho sakta hai
-            cb_data = f"mine_click_{game_id}_{i}" if not game["game_over"] else "mine_none"
-            
-        buttons.append(types.InlineKeyboardButton(btn_text, callback_data=cb_data))
-    
-    # 5x5 Grid setup
-    for row in range(0, 25, 5):
-        markup.add(buttons[row], buttons[row+1], buttons[row+2], buttons[row+3], buttons[row+4])
-        
-    if game["game_over"]:
-        markup.add(
-            types.InlineKeyboardButton("🔄 Play Again", callback_data=f"mine_rematch_{game_id}"),
-            types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-        )
+        text = g["board"][i] if i in g["revealed"] or g["game_over"] else "❓"
+        cb = f"mn_click_{gid}_{i}" if not g["game_over"] and i not in g["revealed"] else "none"
+        buttons.append(types.InlineKeyboardButton(text, callback_data=cb))
+    for r in range(0, 25, 5):
+        markup.add(buttons[r], buttons[r+1], buttons[r+2], buttons[r+3], buttons[r+4])
+    if g["game_over"]:
+        markup.add(types.InlineKeyboardButton("🔄 Play Again", callback_data="game_mines"), types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
     else:
-        markup.add(types.InlineKeyboardButton("🚪 Surrender & Quit", callback_data="main_menu"))
-        
+        markup.add(types.InlineKeyboardButton("💰 Cashout", callback_data=f"mn_cash_{gid}"), types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
     return markup
 
-def get_mines_menu():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("💰 Play Solo (Multiplier Mode)", callback_data="mine_start_solo"),
-        types.InlineKeyboardButton("⚔️ Play with Friend (Survival Duel)", callback_data="mine_start_pvp_info"),
-        types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")
-    )
-    return markup
-    # ==================== PART 9: MASTER CALLBACK HANDLER & RUNNER ==================== #
+# --- 10. BINGO ENGINE ---
+bingo_games = {}
+bingo_waiting_room = {}
 
+def generate_bingo_board():
+    nums = list(range(1, 26))
+    random.shuffle(nums)
+    return nums
+
+def check_bingo_lines(board, marked):
+    lines = 0
+    for r in range(5):
+        if all((r * 5 + c) in marked for c in range(5)): lines += 1
+    for c in range(5):
+        if all((r * 5 + c) in marked for r in range(5)): lines += 1
+    if all((i * 6) in marked for i in range(5)): lines += 1
+    if all(((i + 1) * 4) in marked for i in range(5)): lines += 1
+    return min(lines, 5)
+
+def render_bingo_board(game_id, user_id):
+    game = bingo_games.get(game_id)
+    if not game: return None
+    board = game["players"][user_id]["board"]
+    marked = game["marked"]
+    markup = types.InlineKeyboardMarkup(row_width=5)
+    buttons = []
+    for num in board:
+        btn_text = "❌" if num in marked else str(num)
+        cb = f"bg_cut_{game_id}_{num}" if game["turn"] == user_id and num not in marked and not game["game_over"] else "none"
+        buttons.append(types.InlineKeyboardButton(btn_text, callback_data=cb))
+    for i in range(0, 25, 5):
+        markup.add(buttons[i], buttons[i+1], buttons[i+2], buttons[i+3], buttons[i+4])
+    markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
+    return markup
+
+def update_bingo_dms(game_id, note=""):
+    game = bingo_games.get(game_id)
+    if not game: return
+    p1, p2 = game["player_ids"]
+    letters = ["B", "I", "N", "G", "O"]
+
+    for p in [p1, p2]:
+        opp = p2 if p == p1 else p1
+        my_board = game["players"][p]["board"]
+        marked_idx = [i for i, v in enumerate(my_board) if v in game["marked"]]
+        lines = check_bingo_lines(my_board, marked_idx)
+        status_txt = " ".join([f"🔥*{letters[i]}*" if i < lines else f"⚪{letters[i]}" for i in range(5)])
+
+        turn_txt = "👉 *Aapki Chaal Hai!*" if game["turn"] == p and not game["game_over"] else f"⏳ *{game['players'][opp]['name']} ki baari...*"
+        text = f"🎱 *BINGO 5x5 MATCH*\n🎯 Progress: {status_txt} ({lines}/5 Lines)\n\n{note}\n{turn_txt}"
+        if game["game_over"]:
+            text = f"🏆 *BINGO WINNER:* {game['players'][game['winner']]['name']} jeet gaya!"
+
+        try:
+            bot.edit_message_text(text, chat_id=p, message_id=game["players"][p]["msg_id"], parse_mode="Markdown", reply_markup=render_bingo_board(game_id, p))
+        except Exception:
+            pass
+
+@bot.message_handler(commands=['bingo'])
+def cmd_bingo_group(message):
+    if message.chat.type in ['group', 'supergroup']:
+        game_code = f"bg_{message.chat.id}_{message.message_id}"
+        bingo_waiting_room[game_code] = {"p1_id": message.from_user.id, "p1_name": message.from_user.first_name, "group_id": message.chat.id}
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🎮 Join Bingo Challenge", callback_data=f"join_bg_{game_code}"))
+        bot.reply_to(message, f"🎱 *BINGO 5x5 CHALLENGE!*\nHost: *{message.from_user.first_name}*\nNiche click karke join karo:", parse_mode="Markdown", reply_markup=markup)
+    else:
+        bot.reply_to(message, "Ye command group me dosto ke sath khelne ke liye use karo!")
+
+# --- 11. MASTER CALLBACK HANDLER ---
 @bot.callback_query_handler(func=lambda call: True)
-def handle_all_callbacks(call):
-    user_id = call.from_user.id
-    data = call.data
-    chat_id = call.message.chat.id
-    msg_id = call.message.message_id
+def on_callback(call):
+    uid, data, cid, mid = call.from_user.id, call.data, call.message.chat.id, call.message.message_id
 
-    # --- 1. MAIN MENU & STATS ---
     if data == "main_menu":
-        bot.edit_message_text(
-            "🎮 *Main Game Menu:*\nApna game choose karo aur khelna shuru karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_main_menu()
-        )
+        bot.edit_message_text("🎮 *Main Game Menu:*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=get_main_menu())
 
     elif data == "view_stats":
-        score, played = get_user_stats(user_id)
+        s, p = get_user_stats(uid)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu"))
-        bot.edit_message_text(
-            f"📊 *Player Profile*\n\n"
-            f"👤 Name: {call.from_user.first_name}\n"
-            f"🏆 Total Score: `{score}` pts\n"
-            f"🎮 Games Played: `{played}`",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
+        bot.edit_message_text(f"📊 *Profile:*\n👤 Name: {call.from_user.first_name}\n🏆 Score: `{s}` pts\n🎮 Played: `{p}`", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
 
-    # --- 2. GAME 1: GUESS GAME ---
+    # Guess Game
     elif data == "game_guess":
-        bot.edit_message_text(
-            "🎯 *GUESS GAME*\n\nApni category choose karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_guess_category_menu()
-        )
+        bot.edit_message_text("🎯 *GUESS GAME* - Category chun lo:", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=get_guess_category_menu())
 
     elif data.startswith("g_cat_"):
-        cat = data.split("_")[2]
-        bot.edit_message_text(
-            f"🎯 *Selected:* `{cat.capitalize()}`\nAb difficulty level chun lo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_guess_diff_menu(cat)
-        )
+        cat = data.replace("g_cat_", "")
+        bot.edit_message_text(f"🎯 *Level Chun Lo:*", chat_id=cid, message_id=mid, reply_markup=get_guess_diff_menu(cat))
 
     elif data.startswith("g_diff_"):
-        parts = data.split("_")
-        cat, diff = parts[2], parts[3]
-        pool = QUESTIONS_DATA[cat][diff]
-        q_data = random.choice(pool)
-        
-        active_guess_sessions[user_id] = {
-            "cat": cat,
-            "diff": diff,
-            "ans": q_data["ans"],
-            "pts": 10 if diff == "easy" else (20 if diff == "med" else 30)
-        }
-
-        options = list(q_data["options"])
-        random.shuffle(options)
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_list = [types.InlineKeyboardButton(opt, callback_data=f"g_ans_{opt}") for opt in options]
-        markup.add(*btn_list)
-        markup.add(types.InlineKeyboardButton("🔙 Exit", callback_data="game_guess"))
-
-        text = f"🎯 *GUESS GAME* [{cat.upper()} - {diff.upper()}]\n\n❓ {q_data['hint']}\n\n👉 Sahi answer select karo:"
-        bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=markup)
-
-    elif data.startswith("g_ans_"):
-        selected_ans = data.replace("g_ans_", "")
-        session = active_guess_sessions.get(user_id)
-        if not session:
-            bot.answer_callback_query(call.id, "Session expire ho gaya!")
-            return
-
-        correct_ans = session["ans"]
-        pts, cat, diff = session["pts"], session["cat"], session["diff"]
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton("🔁 Next Question", callback_data=f"g_diff_{cat}_{diff}"),
-            types.InlineKeyboardButton("📂 Change Category", callback_data="game_guess"),
-            types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-        )
-
-        if selected_ans == correct_ans:
-            update_score(user_id, pts)
-            res_text = f"🎉 *SHABASH! Sahi Jawab!* ✅\n\nAnswer: *{correct_ans}*\nScore: `+{pts} pts` 🏆"
-        else:
-            res_text = f"❌ *Galat Jawab!*\n\nTumne chuna: `{selected_ans}`\nSahi Jawab: *{correct_ans}*"
-
-        bot.edit_message_text(res_text, chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=markup)
-
-    # --- 3. GAME 2: MATHS & BRAIN QUIZ ---
-    elif data == "game_quiz":
-        bot.edit_message_text(
-            "🧠 *MATHS & BRAIN QUIZ*\n\nApna mode chun lo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_quiz_menu()
-        )
-
-    elif data.startswith("qz_start_"):
-        mode = data.replace("qz_start_", "")
-        q_item = random.choice(QUIZ_DATA[mode])
-        
-        active_quiz_sessions[user_id] = {
-            "mode": mode,
-            "ans": q_item["ans"],
-            "exp": q_item["exp"]
-        }
-
-        opts = list(q_item["options"])
+        _, _, cat, diff = data.split("_")
+        q = random.choice(QUESTIONS_DATA[cat][diff])
+        active_guess_sessions[uid] = {"ans": q["ans"], "pts": 10 if diff == "easy" else (20 if diff == "med" else 30), "cat": cat, "diff": diff}
+        opts = list(q["options"])
         random.shuffle(opts)
         markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_list = [types.InlineKeyboardButton(o, callback_data=f"qz_ans_{o}") for o in opts]
-        markup.add(*btn_list)
-        markup.add(types.InlineKeyboardButton("🔙 Exit Quiz", callback_data="game_quiz"))
+        for o in opts: markup.add(types.InlineKeyboardButton(o, callback_data=f"g_a_{o}"))
+        markup.add(types.InlineKeyboardButton("🔙 Back", callback_data=f"g_cat_{cat}"))
+        bot.edit_message_text(f"🎯 *GUESS:* {q['hint']}", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
 
-        bot.edit_message_text(
-            f"{q_item['q']}\n\n👉 Sahi option choose karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-
-    elif data.startswith("qz_ans_"):
-        selected_ans = data.replace("qz_ans_", "")
-        session = active_quiz_sessions.get(user_id)
-        if not session:
-            bot.answer_callback_query(call.id, "Session expire ho gaya!")
-            return
-
-        correct = session["ans"]
-        exp = session["exp"]
-        mode = session["mode"]
-
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton("🔁 Next Question", callback_data=f"qz_start_{mode}"),
-            types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")
-        )
-
-        if selected_ans == correct:
-            update_score(user_id, 25)
-            res_text = f"🎉 *PERFECT! Sahi Jawab!* ✅\n\n💡 *Solution:*\n{exp}\n\nPoints: `+25 pts` 🏆"
+    elif data.startswith("g_a_"):
+        ans = data.replace("g_a_", "")
+        sess = active_guess_sessions.get(uid)
+        if not sess: return
+        correct = sess["ans"]
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔁 Next", callback_data=f"g_diff_{sess['cat']}_{sess['diff']}"), types.InlineKeyboardButton("🏠 Menu", callback_data="main_menu"))
+        if ans == correct:
+            update_score(uid, sess["pts"])
+            bot.edit_message_text(f"🎉 *Sahi Jawab!* (+{sess['pts']} pts)", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
         else:
-            res_text = f"❌ *Galat Answer!*\n\nSahi Answer: *{correct}*\n\n💡 *Explanation:*\n{exp}"
+            bot.edit_message_text(f"❌ *Galat!* Sahi answer tha: *{correct}*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
 
-        bot.edit_message_text(res_text, chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=markup)
+    # Quiz Game
+    elif data == "game_quiz":
+        bot.edit_message_text("🧠 *MATHS & BRAIN QUIZ:*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=get_quiz_menu())
 
-    # --- 4. GAME 3: WORD GAME ---
+    elif data.startswith("qz_m_"):
+        mode = data.replace("qz_m_", "")
+        item = random.choice(QUIZ_DATA[mode])
+        active_quiz_sessions[uid] = {"ans": item["ans"], "exp": item["exp"], "mode": mode}
+        opts = list(item["options"])
+        random.shuffle(opts)
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        for o in opts: markup.add(types.InlineKeyboardButton(o, callback_data=f"qz_a_{o}"))
+        markup.add(types.InlineKeyboardButton("🔙 Back", callback_data="game_quiz"))
+        bot.edit_message_text(f"{item['q']}", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
+
+    elif data.startswith("qz_a_"):
+        ans = data.replace("qz_a_", "")
+        sess = active_quiz_sessions.get(uid)
+        if not sess: return
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔁 Next", callback_data=f"qz_m_{sess['mode']}"), types.InlineKeyboardButton("🏠 Menu", callback_data="main_menu"))
+        if ans == sess["ans"]:
+            update_score(uid, 25)
+            bot.edit_message_text(f"🎉 *Sahi Jawab!* (+25 pts)\n\n💡 {sess['exp']}", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
+        else:
+            bot.edit_message_text(f"❌ *Galat!* Sahi answer: *{sess['ans']}*\n\n💡 {sess['exp']}", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
+
+    # Word Game
     elif data == "game_word":
-        bot.edit_message_text(
-            "🔤 *WORD GAME ARENA*\n\nMode select karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_word_menu()
-        )
-
-    elif data == "wrd_mode_scramble":
-        word, scrambled, hint = start_scramble_session(user_id)
+        item = random.choice(WORD_DATABASE)
+        word, scrambled = item["word"], list(item["word"])
+        while "".join(scrambled) == word: random.shuffle(scrambled)
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("👀 Reveal Answer", callback_data=f"wrd_rev_{word}"))
-        markup.add(types.InlineKeyboardButton("🔁 Next Word", callback_data="wrd_mode_scramble"))
-        markup.add(types.InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu"))
+        markup.add(types.InlineKeyboardButton("👀 Reveal", callback_data=f"wrd_r_{word}"), types.InlineKeyboardButton("🔁 Next", callback_data="game_word"), types.InlineKeyboardButton("🏠 Menu", callback_data="main_menu"))
+        bot.edit_message_text(f"🔤 *Word Scramble:*\n\nWord: *`{' '.join(scrambled)}`*\n💡 Clue: _{item['hint']}_", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
 
-        bot.edit_message_text(
-            f"🔀 *WORD SCRAMBLE*\n\n"
-            f"Is word ko unjumble karo:\n\n"
-            f"🔤 *`{scrambled}`*\n"
-            f"💡 Clue: _{hint}_",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
-
-    elif data.startswith("wrd_rev_"):
-        word = data.replace("wrd_rev_", "")
+    elif data.startswith("wrd_r_"):
+        w = data.replace("wrd_r_", "")
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔁 Next Word", callback_data="wrd_mode_scramble"))
-        markup.add(types.InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu"))
-        bot.edit_message_text(f"💡 Sahi word tha: *{word}*", chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=markup)
+        markup.add(types.InlineKeyboardButton("🔁 Next Word", callback_data="game_word"), types.InlineKeyboardButton("🏠 Menu", callback_data="main_menu"))
+        bot.edit_message_text(f"💡 Sahi word tha: *{w}*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=markup)
 
-    elif data in ["wrd_mode_guess", "wrd_mode_duel_info"]:
-        bot.answer_callback_query(call.id, "Group chat me /word duel try karein!")
-
-    # --- 5. GAME 4: TIC TAC TOE ---
+    # Tic Tac Toe
     elif data == "game_tictactoe":
-        bot.edit_message_text(
-            "❌⭕ *TIC TAC TOE*\n\nMode select karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_ttt_menu()
-        )
+        bot.edit_message_text("❌⭕ *Tic Tac Toe:*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=get_ttt_menu())
 
     elif data == "ttt_start_ai":
-        game_id = f"ttt_{user_id}_{random.randint(1000, 9999)}"
-        ttt_games[game_id] = {
-            "p1_id": user_id,
-            "board": [" "] * 9,
-            "turn": "X",
-            "game_over": False
-        }
-        bot.edit_message_text(
-            "❌⭕ *Tic Tac Toe vs AI (Bot)*\n\nAap: ❌ | Bot: ⭕\nAapki pehli chaal hai:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=create_ttt_board(game_id)
-        )
+        gid = f"ttt_{uid}_{random.randint(100,999)}"
+        ttt_games[gid] = {"board": [" "] * 9, "turn": "X", "game_over": False}
+        bot.edit_message_text("❌⭕ *Tic Tac Toe vs Bot*\nAap: ❌ | Bot: ⭕", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=create_ttt_board(gid))
 
     elif data.startswith("ttt_move_"):
         parts = data.split("_")
-        game_id = f"{parts[2]}_{parts[3]}_{parts[4]}"
-        move_idx = int(parts[5])
-        game = ttt_games.get(game_id)
+        gid, idx = f"ttt_{parts[2]}_{parts[3]}", int(parts[4])
+        g = ttt_games.get(gid)
+        if not g or g["game_over"] or g["board"][idx] != " ": return
 
-        if not game or game["game_over"]:
+        g["board"][idx] = "X"
+        win = check_ttt_winner(g["board"])
+        if win:
+            g["game_over"] = True
+            if win == "X": update_score(uid, 15)
+            bot.edit_message_text("🎉 *Aap Jeet Gaye!* (+15 pts)" if win == "X" else "🤝 *Draw!*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=create_ttt_board(gid))
             return
 
-        # Player Move (X)
-        game["board"][move_idx] = "X"
-        winner = check_ttt_winner(game["board"])
+        ai = get_ai_move(g["board"])
+        if ai is not None:
+            g["board"][ai] = "O"
+            win = check_ttt_winner(g["board"])
+            if win:
+                g["game_over"] = True
+                bot.edit_message_text("🤖 *Bot Jeet Gaya!*" if win == "O" else "🤝 *Draw!*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=create_ttt_board(gid))
+                return
 
-        if winner:
-            game["game_over"] = True
-            text = "🎉 *Aap Jeet Gaye!* 🏆 (+15 pts)" if winner == "X" else "🤝 *Game Draw ho gaya!*"
-            if winner == "X":
-                update_score(user_id, 15)
-        else:
-            # Bot Move (O)
-            ai_idx = get_ai_move(game["board"])
-            if ai_idx is not None:
-                game["board"][ai_idx] = "O"
-                winner = check_ttt_winner(game["board"])
-                if winner:
-                    game["game_over"] = True
-                    text = "🤖 *Bot Jeet Gaya!* Agli baar try karo!" if winner == "O" else "🤝 *Game Draw ho gaya!*"
-                else:
-                    text = "❌⭕ *Aapki Chaal hai (❌):*"
-            else:
-                game["game_over"] = True
-                text = "🤝 *Game Draw ho gaya!*"
+        bot.edit_message_text("❌⭕ *Aapki Chaal (❌):*", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=create_ttt_board(gid))
 
-        bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=create_ttt_board(game_id))
-
-    # --- 6. GAME 5: MEMORY GAME ---
+    # Memory Game
     elif data == "game_memory":
-        bot.edit_message_text(
-            "🃏 *MEMORY GAME*\n\nApna mode chun lo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_memory_menu()
-        )
-
-    elif data == "mem_start_solo":
-        game_id = f"mem_{user_id}_{random.randint(1000, 9999)}"
-        memory_games[game_id] = {
-            "cards": create_memory_board(),
-            "revealed": [],
-            "matched": [],
-            "game_over": False,
-            "locked": False
-        }
-        bot.edit_message_text(
-            "🃏 *Memory Challenge (Solo)*\n\nMatching emoji pairs dhoondo (Total 8 pairs):",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=render_memory_grid(game_id)
-        )
+        gid = f"mem_{uid}_{random.randint(100,999)}"
+        cards = MEMORY_EMOJIS * 2
+        random.shuffle(cards)
+        memory_games[gid] = {"cards": cards, "revealed": [], "matched": [], "game_over": False}
+        bot.edit_message_text("🃏 *Memory Game:* Pairs match karo:", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_memory_grid(gid))
 
     elif data.startswith("mem_flip_"):
         parts = data.split("_")
-        game_id = f"{parts[2]}_{parts[3]}_{parts[4]}"
-        card_idx = int(parts[5])
-        game = memory_games.get(game_id)
+        gid, idx = f"mem_{parts[2]}_{parts[3]}", int(parts[4])
+        g = memory_games.get(gid)
+        if not g or idx in g["revealed"] or idx in g["matched"] or g["game_over"]: return
 
-        if not game or card_idx in game["revealed"] or card_idx in game["matched"]:
-            return
-
-        game["revealed"].append(card_idx)
-
-        if len(game["revealed"]) == 2:
-            idx1, idx2 = game["revealed"]
-            if game["cards"][idx1] == game["cards"][idx2]:
-                game["matched"].extend([idx1, idx2])
-                game["revealed"] = []
-                if len(game["matched"]) == 16:
-                    game["game_over"] = True
-                    update_score(user_id, 30)
-                    bot.edit_message_text(
-                        "🎉 *CONGRATULATIONS!* 🏆\nSare 8 pairs match kar diye! (+30 pts)",
-                        chat_id=chat_id,
-                        message_id=msg_id,
-                        parse_mode="Markdown",
-                        reply_markup=render_memory_grid(game_id)
-                    )
+        g["revealed"].append(idx)
+        if len(g["revealed"]) == 2:
+            i1, i2 = g["revealed"]
+            if g["cards"][i1] == g["cards"][i2]:
+                g["matched"].extend([i1, i2])
+                g["revealed"] = []
+                if len(g["matched"]) == 16:
+                    g["game_over"] = True
+                    update_score(uid, 30)
+                    bot.edit_message_text("🏆 *Shabash! Saare pairs match ho gaye!* (+30 pts)", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_memory_grid(gid))
                     return
             else:
-                bot.edit_message_text(
-                    "❌ Match nahi hua! Dobara dhyan se dekho:",
-                    chat_id=chat_id,
-                    message_id=msg_id,
-                    reply_markup=render_memory_grid(game_id)
-                )
-                game["revealed"] = []
+                bot.edit_message_text("❌ Match nahi hua!", chat_id=cid, message_id=mid, reply_markup=render_memory_grid(gid))
+                g["revealed"] = []
                 return
+        bot.edit_message_text("🃏 Pairs dhoondo:", chat_id=cid, message_id=mid, reply_markup=render_memory_grid(gid))
 
-        bot.edit_message_text(
-            "🃏 Matching pairs dhoondo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            reply_markup=render_memory_grid(game_id)
-        )
+    # Mines Game
+    elif data == "game_mines":
+        gid = f"mn_{uid}_{random.randint(100,999)}"
+        bd = ["🐉"] * 5 + ["💎"] * 20
+        random.shuffle(bd)
+        mines_games[gid] = {"board": bd, "revealed": [], "score": 0, "game_over": False}
+        bot.edit_message_text("💣 *Mines Survival:* Diamond 💎 nikalo, Dragon 🐉 se bacho:", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_mines_board(gid))
 
-    # --- 7. GAME 6: BINGO MULTIPLAYER LOBBY ---
+    elif data.startswith("mn_click_"):
+        parts = data.split("_")
+        gid, idx = f"mn_{parts[2]}_{parts[3]}", int(parts[4])
+        g = mines_games.get(gid)
+        if not g or g["game_over"] or idx in g["revealed"]: return
+
+        g["revealed"].append(idx)
+        if g["board"][idx] == "🐉":
+            g["game_over"] = True
+            bot.edit_message_text("💥 *BOOM! Dragon ne pakad liya! Game Over!* 🐉", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_mines_board(gid))
+        else:
+            g["score"] += 15
+            bot.edit_message_text(f"💎 *Diamond Mila!* Current Points: `+{g['score']}` pts", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_mines_board(gid))
+
+    elif data.startswith("mn_cash_"):
+        gid = data.replace("mn_cash_", "")
+        g = mines_games.get(gid)
+        if not g or g["game_over"]: return
+        g["game_over"] = True
+        update_score(uid, g["score"])
+        bot.edit_message_text(f"💰 *Secured!* Aapne `+{g['score']}` pts collect kiye!", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=render_mines_board(gid))
+
+    # Bingo Game
     elif data == "game_bingo":
-        bot.edit_message_text(
-            "🎱 *BINGO 5x5 MULTIPLAYER*\n\n"
-            "Dosto ke saath khelne ke liye bot ko kisi group me add karo aur wahan `/bingo` likho!",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_main_menu()
-        )
+        bot.edit_message_text("🎱 *Bingo Multiplayer:*\nGroup me bot ko add karo aur wahan `/bingo` likh kar friend ko challenge karo!", chat_id=cid, message_id=mid, parse_mode="Markdown", reply_markup=get_main_menu())
 
     elif data.startswith("join_bg_"):
-        game_code = data.replace("join_bg_", "")
-        lobby = bingo_waiting_room.get(game_code)
-        if not lobby:
-            bot.answer_callback_query(call.id, "Game lobby expired!")
-            return
-        if lobby["p1_id"] == user_id:
-            bot.answer_callback_query(call.id, "Host khud ke match ko join nahi kar sakta!", show_alert=True)
-            return
+        code = data.replace("join_bg_", "")
+        lobby = bingo_waiting_room.get(code)
+        if not lobby or lobby["p1_id"] == uid: return
 
-        # Initialize Bingo Match
-        p1_id, p2_id = lobby["p1_id"], user_id
-        p1_name, p2_name = lobby["p1_name"], call.from_user.first_name
-        
-        bingo_games[game_code] = {
+        p1_id, p2_id = lobby["p1_id"], uid
+        bingo_games[code] = {
             "player_ids": [p1_id, p2_id],
-            "players": {
-                p1_id: {"name": p1_name, "board": generate_bingo_board(), "msg_id": None},
-                p2_id: {"name": p2_name, "board": generate_bingo_board(), "msg_id": None}
-            },
-            "turn": p1_id,
-            "marked_numbers": [],
-            "game_over": False,
-            "winner": None
+            "players": {p1_id: {"name": lobby["p1_name"], "board": generate_bingo_board(), "msg_id": None}, p2_id: {"name": call.from_user.first_name, "board": generate_bingo_board(), "msg_id": None}},
+            "turn": p1_id, "marked": [], "game_over": False, "winner": None
         }
 
-        # Send DM Boards
         try:
-            m1 = bot.send_message(p1_id, "🎱 Bingo match shuru ho raha hai...", reply_markup=render_bingo_board(game_code, p1_id))
-            bingo_games[game_code]["players"][p1_id]["msg_id"] = m1.message_id
-            m2 = bot.send_message(p2_id, "🎱 Bingo match shuru ho raha hai...", reply_markup=render_bingo_board(game_code, p2_id))
-            bingo_games[game_code]["players"][p2_id]["msg_id"] = m2.message_id
-            
-            update_bingo_dms(bot, game_code, f"🚀 Match Shuru! {p1_name} vs {p2_name}")
-            bot.edit_message_text(f"🎮 Bingo match shuru ho gaya! Dono players ({p1_name} & {p2_name}) apne DM me check karein.", chat_id=lobby["group_id"], message_id=msg_id)
+            m1 = bot.send_message(p1_id, "🎱 Bingo Match Starting...", reply_markup=render_bingo_board(code, p1_id))
+            bingo_games[code]["players"][p1_id]["msg_id"] = m1.message_id
+            m2 = bot.send_message(p2_id, "🎱 Bingo Match Starting...", reply_markup=render_bingo_board(code, p2_id))
+            bingo_games[code]["players"][p2_id]["msg_id"] = m2.message_id
+            update_bingo_dms(code, "🚀 Match Shuru!")
+            bot.edit_message_text("🎮 *Match start!* Dono players apne DM me check karein.", chat_id=lobby["group_id"], message_id=mid, parse_mode="Markdown")
         except Exception:
-            bot.send_message(lobby["group_id"], "⚠️ Dono players pehle bot ke DM me `/start` karein taaki board bheja ja sake!")
+            bot.send_message(lobby["group_id"], "⚠️ Dono players pehle bot ko DM me `/start` karein!")
 
     elif data.startswith("bg_cut_"):
         parts = data.split("_")
-        game_code = f"bg_{parts[2]}_{parts[3]}"
-        num = int(parts[4])
-        game = bingo_games.get(game_code)
+        code, num = f"bg_{parts[2]}_{parts[3]}", int(parts[4])
+        g = bingo_games.get(code)
+        if not g or g["turn"] != uid or g["game_over"]: return
 
-        if not game or game["turn"] != user_id or game["game_over"]:
-            return
+        g["marked"].append(num)
+        p1_id, p2_id = g["player_ids"]
+        g["turn"] = p2_id if uid == p1_id else p1_id
 
-        game["marked_numbers"].append(num)
-        p1_id, p2_id = game["player_ids"]
-        next_turn = p2_id if user_id == p1_id else p1_id
-        game["turn"] = next_turn
-
-        # Check Winner
-        for p_id in [p1_id, p2_id]:
-            board = game["players"][p_id]["board"]
-            marked_idx = [idx for idx, val in enumerate(board) if val in game["marked_numbers"]]
-            if check_bingo_lines(board, marked_idx) >= 5:
-                game["game_over"] = True
-                game["winner"] = p_id
-                update_score(p_id, 50)
+        for p in [p1_id, p2_id]:
+            bd = g["players"][p]["board"]
+            m_idx = [i for i, v in enumerate(bd) if v in g["marked"]]
+            if check_bingo_lines(bd, m_idx) >= 5:
+                g["game_over"] = True
+                g["winner"] = p
+                update_score(p, 50)
                 break
+        update_bingo_dms(code, f"✂️ Number `{num}` cut hua!")
 
-        caller_name = game["players"][user_id]["name"]
-        update_bingo_dms(bot, game_code, f"✂️ *{caller_name} ne number `{num}` cut kiya!*")
-
-    # --- 8. GAME 7: MINES & DRAGON ---
-    elif data == "game_mines":
-        bot.edit_message_text(
-            "💣 *MINES & DRAGONS*\n\nMode select karo:",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=get_mines_menu()
-        )
-
-    elif data == "mine_start_solo":
-        game_id = f"mn_{user_id}_{random.randint(1000, 9999)}"
-        mines_games[game_id] = {
-            "board": create_mines_board(),
-            "revealed": [],
-            "score": 0,
-            "game_over": False
-        }
-        bot.edit_message_text(
-            "💣 *Mines Survival (Solo)*\n\nDiamond 💎 dhoondo, Dragon 🐉 se bacho (Total 5 Dragons chhupe hain):",
-            chat_id=chat_id,
-            message_id=msg_id,
-            parse_mode="Markdown",
-            reply_markup=render_mines_board(game_id)
-        )
-
-    elif data.startswith("mine_click_"):
-        parts = data.split("_")
-        game_id = f"{parts[2]}_{parts[3]}_{parts[4]}"
-        cell_idx = int(parts[5])
-        game = mines_games.get(game_id)
-
-        if not game or game["game_over"] or cell_idx in game["revealed"]:
-            return
-
-        game["revealed"].append(cell_idx)
-        val = game["board"][cell_idx]
-
-        if val == "🐉":
-            game["game_over"] = True
-            text = "💥 *BOOM! Dragon/Bomb aa gaya!* Game Over! 🐉🔥"
-        else:
-            game["score"] += 10
-            update_score(user_id, 10)
-            text = f"✨ *Diamond Mila!* 💎 Points: `{game['score']} pts`\nAgla box choose karo ya menu se quit karo:"
-
-        bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, parse_mode="Markdown", reply_markup=render_mines_board(game_id))
-
-    elif data.endswith("_none"):
+    elif data == "none":
         bot.answer_callback_query(call.id, "")
 
-# --- BOT POLLING START ---
+# --- 12. POLLING RUNNER ---
 if __name__ == "__main__":
     print("🚀 7-in-1 Arcade Bot is running smoothly...")
     bot.infinity_polling(skip_pending=True)
-        
+    
