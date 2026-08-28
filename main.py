@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import time
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
@@ -12,17 +13,23 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Gaming 360 Bot is Live 24/7!")
+    def log_message(self, format, *args):
+        return
 
 def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
-    server.serve_forever()
+    try:
+        port = int(os.environ.get("PORT", 8080))
+        server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+        print(f"Web server active on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Server error: {e}")
 
 threading.Thread(target=run_server, daemon=True).start()
 
 # Bot Setup
 TOKEN = "8963859901:AAGT3dYv2NraTFV69ZBQ8f5jEcqhcuIWcis"
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN, threaded=True)
 
 rooms = {}      # Code-based rooms for DM 1v1
 games = {}      # Bingo games
@@ -36,8 +43,8 @@ CBSE_QUESTIONS = {
     "10": [
         {
             "q": "📚 [Class 10 Science - Light]\nA ray passes through Centre of Curvature of concave mirror and retraces its path. Why?",
-            "opts": ["Angle of Incidence = 0°", "Angle of Refraction = 90°", "Mirror is plane at center", "Total Internal Reflection"],
-            "ans": "Angle of Incidence = 0°"
+            "opts": ["Angle of Incidence = 0 deg", "Angle of Refraction = 90 deg", "Mirror is plane at center", "Total Internal Reflection"],
+            "ans": "Angle of Incidence = 0 deg"
         },
         {
             "q": "📚 [Class 10 Science - Electricity]\nTwo resistors R1 and R2 (R1 > R2) are in parallel across V. Which consumes MORE power?",
@@ -50,7 +57,7 @@ CBSE_QUESTIONS = {
             "ans": "Ca(HCO3)2 (Soluble)"
         },
         {
-            "q": "📚 [Class 10 Maths - AP]\nSum of first n terms is Sn = 3n² + 5n. What is the common difference (d)?",
+            "q": "📚 [Class 10 Maths - AP]\nSum of first n terms is Sn = 3n^2 + 5n. What is the common difference (d)?",
             "opts": ["6", "3", "5", "8"],
             "ans": "6"
         },
@@ -67,14 +74,14 @@ CBSE_QUESTIONS = {
             "ans": "125%"
         },
         {
-            "q": "📚 [Class 11 Chemistry - Thermodynamics]\nFor an isolated system in a spontaneous process, entropy change (ΔS) is:",
+            "q": "📚 [Class 11 Chemistry - Thermodynamics]\nFor an isolated system in a spontaneous process, entropy change (Delta S) is:",
             "opts": ["Always Positive (>0)", "Always Negative (<0)", "Zero (=0)", "Depends on enthalpy"],
             "ans": "Always Positive (>0)"
         },
         {
             "q": "📚 [Class 11 Maths - Sets]\nIf set A has n elements, total number of non-empty proper subsets is:",
-            "opts": ["2ⁿ - 2", "2ⁿ - 1", "2ⁿ", "n² - 1"],
-            "ans": "2ⁿ - 2"
+            "opts": ["2^n - 2", "2^n - 1", "2^n", "n^2 - 1"],
+            "ans": "2^n - 2"
         },
         {
             "q": "📚 [Class 11 Physics - Gravitation]\nIf Earth shrinks to half radius without mass change, duration of a day will be:",
@@ -89,9 +96,9 @@ CBSE_QUESTIONS = {
             "ans": "Only Torque, Net Force = 0"
         },
         {
-            "q": "📚 [Class 12 Physics - Optics]\nAt Brewster's angle, reflected & refracted rays are:",
-            "opts": ["Perpendicular (90°)", "Parallel", "Anti-parallel", "At 45°"],
-            "ans": "Perpendicular (90°)"
+            "q": "📚 [Class 12 Physics - Optics]\nAt Brewster angle, reflected & refracted rays are:",
+            "opts": ["Perpendicular (90 deg)", "Parallel", "Anti-parallel", "At 45 deg"],
+            "ans": "Perpendicular (90 deg)"
         },
         {
             "q": "📚 [Class 12 Chemistry - Kinetics]\nFor a zero-order reaction, slope of [R] vs Time (t) graph is:",
@@ -124,27 +131,28 @@ def generate_code(length=5):
 
 @bot.message_handler(commands=['start', 'games', 'menu'])
 def show_main_menu(message):
-    chat_id = message.chat.id
-    
-    # Deep-link handle
-    text = message.text.split()
-    if len(text) > 1 and text[1].startswith("join_"):
-        room_code = text[1].replace("join_", "")
-        join_room_by_code(message.from_user, chat_id, room_code)
-        return
+    try:
+        chat_id = message.chat.id
+        text = message.text.split()
+        if len(text) > 1 and text[1].startswith("join_"):
+            room_code = text[1].replace("join_", "")
+            join_room_by_code(message.from_user, chat_id, room_code)
+            return
 
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("🎮 Play & Fun Games (TTT / Bingo)", callback_data="sec_games"),
-        InlineKeyboardButton("🧠 Logical & Brain Games (Maths / Riddles)", callback_data="sec_logic"),
-        InlineKeyboardButton("📚 Study Based Quiz (CBSE 10, 11, 12)", callback_data="sec_study")
-    )
-    bot.send_message(
-        chat_id,
-        "🔥 **Welcome to 360 Arena!** 🔥\n\nKripya category select karein:",
-        reply_markup=markup,
-        parse_mode="Markdown"
-    )
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton("🎮 Play & Fun Games (TTT / Bingo)", callback_data="sec_games"),
+            InlineKeyboardButton("🧠 Logical & Brain Games (Maths / Riddles)", callback_data="sec_logic"),
+            InlineKeyboardButton("📚 Study Based Quiz (CBSE 10, 11, 12)", callback_data="sec_study")
+        )
+        bot.send_message(
+            chat_id,
+            "🔥 **Welcome to 360 Arena!** 🔥\n\nKripya category select karein:",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        print(f"Error in show_main_menu: {e}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('sec_'))
 def handle_sections(call):
@@ -208,7 +216,7 @@ def send_quiz_question(chat_id, category):
     
     markup = InlineKeyboardMarkup(row_width=1)
     for opt in opts:
-        markup.add(InlineKeyboardButton(opt, callback_data=f"qzans_{category}_{opt[:20]}_{q_data['ans'][:20]}"))
+        markup.add(InlineKeyboardButton(opt, callback_data=f"qzans_{category}_{opt[:15]}_{q_data['ans'][:15]}"))
     
     bot.send_message(chat_id, f"{q_data['q']}", reply_markup=markup, parse_mode="Markdown")
 
@@ -276,8 +284,8 @@ def create_ttt_room(call):
         'host_msg_id': None,
         'guest_msg_id': None
     }
-    bot_info = bot.get_me()
-    share_url = f"https://t.me/share/url?url=https://t.me/{bot_info.username}?start=join_{code}&text=Aaja%20Tic%20Tac%20Toe%20khelte%20hain!%20Room%20Code:%20{code}"
+    bot_user = "Gaming_360_bot"
+    share_url = f"https://t.me/share/url?url=https://t.me/{bot_user}?start=join_{code}&text=Aaja%20Tic%20Tac%20Toe%20khelte%20hain!%20Room%20Code:%20{code}"
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("📲 Dost ko Invite Bhejo", url=share_url))
     bot.send_message(call.message.chat.id, f"🎟️ **Match Room Ready!**\n\n📌 Room Code: `{code}`\n\nDost ko invite bhejo ya code share karo.", reply_markup=markup, parse_mode="Markdown")
@@ -430,9 +438,4 @@ def join_ttt(call):
     chat_id = int(call.data.split('_')[2])
     user = call.from_user
     if chat_id not in ttt_games:
-        ttt_games[chat_id] = {'mode': 'pvp', 'p1': user, 'p2': None, 'board': [" "]*9, 'turn': 'X'}
-        bot.send_message(chat_id, f"✅ **{user.first_name}** (X) ready hai! Koi aur Join dabaye.")
-    elif ttt_games[chat_id].get('p2') is None and ttt_games[chat_id]['p1'].id != user.id:
-        ttt_games[chat_id]['p2'] = user
-        p1_name = ttt_games[chat_id]['p1'].first_name
-        bot.send_m
+        ttt_games[chat_id] = {'m
